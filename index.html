@@ -100,6 +100,17 @@
         .category-button:hover {
             background-color: #4f46e5; /* Indigo 600 */
         }
+        .promo-banner {
+            width: 100%;
+            height: 150px; /* Fixed height for banners */
+            object-fit: cover; /* Ensures image covers area without distortion */
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            transition: transform 0.2s ease-in-out;
+        }
+        .promo-banner:hover {
+            transform: scale(1.02);
+        }
     </style>
 </head>
 <body>
@@ -128,6 +139,20 @@
                 </div>
             </header>
             <div class="p-6">
+                <!-- Promotional Banners / Advertisements Section -->
+                <h2 class="text-2xl font-semibold text-gray-800 mb-6">Today's Hot Deals!</h2>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                    <a href="#category=Fashion" class="block">
+                        <img src="https://placehold.co/600x200/ff7f50/ffffff?text=Fashion+Sale+20%25+Off" alt="Fashion Sale Banner" class="promo-banner">
+                    </a>
+                    <a href="#category=Mobiles/Computers" class="block">
+                        <img src="https://placehold.co/600x200/20b2aa/ffffff?text=Electronics+Mega+Deal" alt="Electronics Deal Banner" class="promo-banner">
+                    </a>
+                    <a href="#cart" class="block">
+                        <img src="https://placehold.co/600x200/9370db/ffffff?text=Free+Shipping+on+Orders+Over+$50" alt="Free Shipping Banner" class="promo-banner">
+                    </a>
+                </div>
+
                 <h2 class="text-2xl font-semibold text-gray-800 mb-6">Shop by Category</h2>
                 <div id="categories-container" class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
                     <!-- Categories will be dynamically loaded here -->
