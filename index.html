@@ -4,29 +4,26 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Product Website</title>
-    <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Inter Font -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
         body {
             font-family: 'Inter', sans-serif;
             margin: 0;
             padding: 0;
-            background-color: #f3f4f6; /* Light gray background */
+            background-color: #f3f4f6;
             display: flex;
             justify-content: center;
-            align-items: center; /* Changed to center for vertical centering */
+            align-items: center;
             min-height: 100vh;
         }
         #app {
             width: 100%;
-            max-width: 90vw; /* Changed from 1200px to 90vw for better desktop responsiveness */
+            max-width: 90vw;
             background-color: #ffffff;
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
             border-radius: 12px;
             overflow: hidden;
-            /* Removed margin: 20px; as body handles centering and internal pages have padding */
         }
         .hidden {
             display: none;
@@ -39,7 +36,7 @@
             box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);
         }
         .btn-primary {
-            background-color: #4f46e5; /* Indigo 600 */
+            background-color: #4f46e5;
             color: white;
             padding: 10px 20px;
             border-radius: 8px;
@@ -47,63 +44,65 @@
             transition: background-color 0.2s ease-in-out;
         }
         .btn-primary:hover {
-            background-color: #4338ca; /* Indigo 700 */
+            background-color: #4338ca;
         }
         .btn-secondary {
-            background-color: #e5e7eb; /* Gray 200 */
-            color: #374151; /* Gray 700 */
+            background-color: #e5e7eb;
+            color: #374151;
             padding: 10px 20px;
             border-radius: 8px;
             font-weight: 500;
             transition: background-color 0.2s ease-in-out;
         }
         .btn-secondary:hover {
-            background-color: #d1d5db; /* Gray 300 */
+            background-color: #d1d5db;
         }
         .header {
-            background-color: #374151; /* Dark gray */
+            background-color: #374151;
             color: white;
             padding: 16px 24px;
             display: flex;
             justify-content: space-between;
             align-items: center;
-            border-bottom: 1px solid #4b5563; /* Darker border */
+            border-bottom: 1px solid #4b5563;
         }
         .header h1 {
-            font-size: 1.75rem; /* text-2xl */
-            font-weight: 700; /* font-bold */
+            font-size: 1.75rem;
+            font-weight: 700;
         }
         .cart-icon {
             cursor: pointer;
-            font-size: 1.8rem; /* Larger icon */
+            font-size: 1.8rem;
             position: relative;
         }
         .cart-count {
             position: absolute;
             top: -8px;
             right: -8px;
-            background-color: #ef4444; /* Red 500 */
+            background-color: #ef4444;
             color: white;
-            border-radius: 9999px; /* Full rounded */
+            border-radius: 9999px;
             padding: 2px 8px;
-            font-size: 0.75rem; /* text-xs */
+            font-size: 0.75rem;
             font-weight: 600;
         }
         .category-button {
-            background-color: #6366f1; /* Indigo 500 */
+            background-color: #6366f1;
             color: white;
             padding: 10px 18px;
             border-radius: 8px;
             font-weight: 500;
             transition: background-color 0.2s ease-in-out;
+            display: inline-block; /* Ensure anchor tags behave like buttons */
+            text-align: center;
         }
         .category-button:hover {
-            background-color: #4f46e5; /* Indigo 600 */
+            background-color: #4f46e5;
         }
         .promo-banner {
             width: 100%;
-            height: 150px; /* Fixed height for banners */
-            object-fit: cover; /* Ensures image covers area without distortion */
+            height: 150px;
+            object-fit: cover;
             border-radius: 8px;
             box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
             transition: transform 0.2s ease-in-out;
@@ -115,7 +114,6 @@
 </head>
 <body>
     <div id="app">
-        <!-- Login Page -->
         <div id="login-page" class="flex flex-col items-center justify-center min-h-screen p-8">
             <h2 class="text-3xl font-bold text-gray-800 mb-8">Welcome to Our Store</h2>
             <div class="bg-white p-8 rounded-lg shadow-md w-full max-w-md">
@@ -127,7 +125,6 @@
             </div>
         </div>
 
-        <!-- Main Page (Home) -->
         <div id="main-page" class="hidden">
             <header class="header">
                 <h1 class="text-white">Our Products</h1>
@@ -139,7 +136,6 @@
                 </div>
             </header>
             <div class="p-6">
-                <!-- Promotional Banners / Advertisements Section -->
                 <h2 class="text-2xl font-semibold text-gray-800 mb-6">Today's Hot Deals!</h2>
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
                     <a href="#category=Fashion" class="block">
@@ -155,17 +151,14 @@
 
                 <h2 class="text-2xl font-semibold text-gray-800 mb-6">Shop by Category</h2>
                 <div id="categories-container" class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-                    <!-- Categories will be dynamically loaded here -->
-                </div>
+                    </div>
 
                 <h2 class="text-2xl font-semibold text-gray-800 mb-6">Featured Products</h2>
                 <div id="product-list" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-                    <!-- Product cards will be dynamically loaded here -->
-                </div>
+                    </div>
             </div>
         </div>
 
-        <!-- Category Page -->
         <div id="category-page" class="hidden">
             <header class="header">
                 <button id="back-to-main-btn-category" class="btn-secondary px-4 py-2 text-sm">← Go Back</button>
@@ -176,22 +169,18 @@
             </header>
             <div class="p-6">
                 <div id="category-product-list" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-                    <!-- Category specific product cards will be dynamically loaded here -->
-                </div>
+                    </div>
             </div>
         </div>
 
-        <!-- Cart Page -->
         <div id="cart-page" class="hidden">
             <header class="header">
                 <button id="back-to-main-btn-cart" class="btn-secondary px-4 py-2 text-sm">← Go Back</button>
                 <h1 class="text-white text-center flex-grow">Your Cart</h1>
-                <div class="w-10"></div> <!-- Placeholder for alignment -->
-            </header>
+                <div class="w-10"></div> </header>
             <div class="p-6">
                 <div id="cart-items-container" class="space-y-4">
-                    <!-- Cart items will be dynamically loaded here -->
-                </div>
+                    </div>
                 <div id="cart-summary" class="mt-8 pt-4 border-t border-gray-200 text-right">
                     <p class="text-xl font-semibold text-gray-800">Total: $<span id="cart-total">0.00</span></p>
                     <button id="checkout-btn" class="btn-primary mt-4">Proceed to Checkout</button>
@@ -199,9 +188,24 @@
                 <p id="empty-cart-message" class="text-gray-500 text-center mt-8 hidden">Your cart is empty.</p>
             </div>
         </div>
+
+        <div id="product-detail-page" class="hidden">
+            <header class="header">
+                <button id="back-from-detail-btn" class="btn-secondary px-4 py-2 text-sm">← Go Back</button>
+                <h1 class="text-white text-center flex-grow">Product Details</h1>
+                <div class="cart-icon" id="cart-icon-detail">
+                    🛒 <span id="cart-count-detail" class="cart-count hidden">0</span>
+                </div>
+            </header>
+            <div class="p-8">
+                <div id="product-detail-content" class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    </div>
+            </div>
+        </div>
+
     </div>
 
-    <!-- Link to external JavaScript file -->
+    <script src="event-tracker.js"></script>
     <script src="script.js"></script>
 </body>
 </html>
