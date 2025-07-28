@@ -104,9 +104,12 @@ function showPage(pageName, options = {}) {
             showPage('login');
     }
 
-    // TRACKING: Fire a page_view event
+    // TRACKING: Fire a page_view event on every page transition/load
+    // This will send page_view events for every hash change/page transition.
     setTimeout(() => {
-        EventTracker.track('page_view');
+       if (typeof EventTracker !== 'undefined' && EventTracker.track) {
+           EventTracker.track('page_view');
+       }
     }, 0);
 }
 
@@ -148,8 +151,16 @@ function renderProductDetail(productId) {
         return;
     }
 
-    // TRACKING: Fire a view_item event
-    EventTracker.track('view_item');
+    // TRACKING: Fire a view_item event here when a product detail page is shown
+    if (typeof EventTracker !== 'undefined' && EventTracker.track) {
+        EventTracker.track('view_item', { 
+            item_id: product.id, 
+            item_name: product.name,
+            item_category: product.category,
+            item_price: product.price
+            // Add more item-specific parameters as needed for analysis
+        });
+    }
 
     productDetailContent.innerHTML = `
         <div class="product-image-container">
@@ -194,6 +205,16 @@ function addToCart(productId) {
     }
     updateCartCounts();
     alertMessage('Product added to cart!');
+    // TRACKING: Fire an add_to_cart event
+    if (typeof EventTracker !== 'undefined' && EventTracker.track) {
+        const product = products.find(p => p.id === productId);
+        EventTracker.track('add_to_cart', { 
+            product_id: productId,
+            product_name: product ? product.name : 'Unknown',
+            quantity: 1, // Quantity of item just added
+            price: product ? product.price : 0
+        });
+    }
 }
 
 function updateCartCounts() {
@@ -330,7 +351,11 @@ backFromDetailBtn.addEventListener('click', () => window.history.back());
 checkoutBtn.addEventListener('click', () => {
     if (cartItems.length > 0) {
         alertMessage('Proceeding to checkout! (This is a demo)');
-        cartItems = [];
+        // TRACKING: Fire a purchase event
+        if (typeof EventTracker !== 'undefined' && EventTracker.track) {
+            EventTracker.track('purchase'); // Track the purchase event
+        }
+        cartItems = []; // Clear cart after purchase
         updateCartCounts();
         renderCart();
     } else {
@@ -347,12 +372,15 @@ window.addEventListener('popstate', handleHashChange);
 
 // --- Initial Page Load ---
 document.addEventListener('DOMContentLoaded', () => {
-    EventTracker.init();
-
-    // TRACKING: Add listeners for promotion clicks
+    // EventTracker.init() is now called directly within event-tracker.js's DOMContentLoaded listener.
+    // So, we don't call it here anymore to avoid double initialization or race conditions.
+    
+    // TRACKING: Enable promo banner tracking
     document.querySelectorAll('.promo-banner').forEach(banner => {
         banner.addEventListener('click', () => {
-            EventTracker.track('view_promotion');
+            if (typeof EventTracker !== 'undefined' && EventTracker.track) {
+                EventTracker.track('view_promotion'); // Now active
+            }
         });
     });
 

@@ -1,0 +1,13 @@
+
+{
+  "name": "view-item-tracker-function",
+  "version": "1.0.0",
+  "main": "index.js",
+  "dependencies": {
+    "@google-cloud/bigquery": "^7.8.0",
+    "@google-cloud/functions-framework": "^3.4.0"
+  },
+  "scripts": {
+    "start": "functions-framework --target=viewItemTracker"
+  }
+}
