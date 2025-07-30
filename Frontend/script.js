@@ -251,7 +251,7 @@ function renderProductDetail(productId) {
 
     // Track view_item event when product detail page is rendered
     // NOW PASSING ITEM DETAILS DIRECTLY AS TOP-LEVEL FIELDS
-    EventTracker.track('view_item', {
+    EventTracker.track('view_item', { // Event name is 'view_item'
         item: { // Match the BigQuery RECORD type for 'item'
             item_id: product.id,
             item_name: product.name,
@@ -263,6 +263,7 @@ function renderProductDetail(productId) {
         }
     });
 
+    // Populate product detail content
     productDetailContent.innerHTML = `
         <div class="product-image-container">
             <img src="${product.image}" alt="${product.name}" class="w-full h-auto object-cover rounded-lg shadow-md">
@@ -277,12 +278,58 @@ function renderProductDetail(productId) {
             </div>
         </div>
     `;
+
     // Render review section for this product
     renderReviewSection(productId);
 
     document.getElementById('detail-add-to-cart-btn').addEventListener('click', (event) => {
         const id = event.target.dataset.productId;
         addToCart(id);
+    });
+
+    // --- "All Details" Section Logic ---
+    const toggleDetailsBtn = document.getElementById('toggle-details-btn');
+    const allDetailsSection = document.getElementById('all-details-section');
+
+    // Populate the details section
+    allDetailsSection.innerHTML = `
+        <h5>Product Specifications</h5>
+        <p><strong>Brand:</strong> ${product.brand || 'N/A'}</p>
+        <p><strong>Category:</strong> ${product.category || 'N/A'}</p>
+        <p><strong>Variant:</strong> ${product.variant || 'N/A'}</p>
+        <p><strong>Description:</strong> ${product.description || 'N/A'}</p>
+        <p><strong>Product ID:</strong> ${product.id}</p>
+    `;
+
+    // Ensure the section is hidden initially via JS
+    allDetailsSection.classList.add('hidden'); // Add 'hidden' class back if it was removed by previous CSS override
+    toggleDetailsBtn.textContent = 'Show All Details';
+
+
+    // Add event listener to toggle details visibility
+    toggleDetailsBtn.addEventListener('click', () => {
+        if (allDetailsSection.classList.contains('hidden')) {
+            allDetailsSection.classList.remove('hidden');
+            allDetailsSection.classList.add('show-details'); // Add class for animation
+            toggleDetailsBtn.textContent = 'Hide Details';
+
+            // Track 'View_Product_Details' event when details are expanded
+            // Changed event name to 'View_Product_Details' for consistency
+            EventTracker.track('View_Product_Details', {
+                item: { // Send item details again for context of what details were viewed
+                    item_id: product.id,
+                    item_name: product.name,
+                    item_category: product.category,
+                    item_brand: product.brand || null,
+                    item_varient: product.variant || null
+                },
+                description_length: product.description ? product.description.length : 0 // Example additional param
+            });
+        } else {
+            allDetailsSection.classList.remove('show-details'); // Remove class for animation
+            allDetailsSection.classList.add('hidden');
+            toggleDetailsBtn.textContent = 'Show All Details';
+        }
     });
 }
 
@@ -334,12 +381,11 @@ function submitReview(productId, rating, reviewText) {
     }
     // NOW PASSING REVIEW DETAILS DIRECTLY AS TOP-LEVEL FIELDS
     console.log(`Submitting review for product ${productId}: Rating ${rating}, Review: "${reviewText}"`);
-    EventTracker.track('submit_review', {
+    EventTracker.track('User_Reviews', { // Event name is 'User_Reviews'
         review: { // Match the BigQuery RECORD type for 'review'
             product_id: productId,
             rating: parseInt(rating),
             review_text: reviewText,
-            // viewed_reviews_count is not relevant for submit_review, set to null
             viewed_reviews_count: null
         }
     });
@@ -358,17 +404,12 @@ function renderReviews(productId) {
         { user: 'Bob', rating: 4, text: 'Good quality, met my expectations.', timestamp: '2025-07-22' }
     ];
 
-    // NOW PASSING PRODUCT ID AND VIEWED REVIEWS COUNT DIRECTLY
+    // UPDATED: NOW PASSING PRODUCT ID AND VIEWED REVIEWS COUNT CORRECTLY NESTED
     console.log(`Fetching reviews for product ${productId}`);
-    EventTracker.track('view_reviews', {
-        review: { // Match the BigQuery RECORD type for 'review'
-            product_id: productId,
-            // Populate viewed_reviews_count with the number of mock reviews
-            viewed_reviews_count: mockReviews.length,
-            // Other review fields not relevant for view_reviews, set to null
-            rating: null,
-            review_text: null
-        }
+    EventTracker.track('View_User_Reviews', { // Event name is 'View_User_Reviews'
+        viewed_reviews_count: mockReviews.length, // Send viewed_reviews_count directly at top-level
+        item: { item_id: productId }, // Correctly send product_id nested under 'item'
+        review: null    // Explicitly set review to null as per BigQuery schema and event purpose
     });
 
     const reviewsDisplayArea = document.getElementById('reviews-display-area');
@@ -572,7 +613,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const promotionName = banner.dataset.promotionName || null; // Get from data-attribute
             const creativeSlot = banner.dataset.creativeSlot || null;   // Get from data-attribute
 
-            EventTracker.track('view_promotion', {
+            EventTracker.track('view_promotion', { // Event name is 'view_promotion'
                 promotion: { // Match BigQuery RECORD type for 'promotion'
                     promotion_id: promotionId,
                     promotion_name: promotionName,

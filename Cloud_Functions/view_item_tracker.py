@@ -7,6 +7,7 @@ from datetime import datetime
 from google.cloud import bigquery
 from dotenv import load_dotenv
 from flask import Response
+from google.oauth2 import service_account # ADDED: Import for service account credentials
 
 # Load environment variables from .env file (for local testing)
 load_dotenv()
@@ -17,15 +18,30 @@ GCP_PROJECT_ID = os.environ.get('GCP_PROJECT_ID')
 BIGQUERY_DATASET_ID = os.environ.get('BIGQUERY_DATASET_ID')
 BIGQUERY_TABLE_ID = os.environ.get('BIGQUERY_TABLE_ID')
 
+# Define the path to your service account key file
+SERVICE_ACCOUNT_KEY_PATH = "key.json" # Make sure 'key.json' is in your backend/ or Cloud_Functions/ folder
+
 # Validate that environment variables are loaded
 if not all([GCP_PROJECT_ID, BIGQUERY_DATASET_ID, BIGQUERY_TABLE_ID]):
     raise ValueError("Missing one or more BigQuery environment variables (GCP_PROJECT_ID, BIGQUERY_DATASET_ID, BIGQUERY_TABLE_ID).")
 
 # --- Initialize BigQuery client ---
+client = None
+table_id = None # Initialize to None
+
 try:
-    client = bigquery.Client(project=GCP_PROJECT_ID)
+    # MODIFIED: Initialize BigQuery client with explicit service account credentials
+    credentials = service_account.Credentials.from_service_account_file(
+        SERVICE_ACCOUNT_KEY_PATH, scopes=["https://www.googleapis.com/auth/bigquery"]
+    )
+    client = bigquery.Client(project=GCP_PROJECT_ID, credentials=credentials)
     table_id = f"{GCP_PROJECT_ID}.{BIGQUERY_DATASET_ID}.{BIGQUERY_TABLE_ID}"
     print(f"DEBUG: BigQuery client initialized successfully for table: {table_id}")
+except FileNotFoundError: # ADDED: Specific error handling for missing key file
+    print(f"ERROR: Service account key file not found at '{SERVICE_ACCOUNT_KEY_PATH}'. Ensure it's in the correct directory relative to where the script is run.")
+    client = None
+    table_id = None
+    raise # Re-raise to stop function startup if client fails to initialize
 except Exception as e:
     print(f"ERROR: Failed to initialize BigQuery client at startup: {e}")
     client = None

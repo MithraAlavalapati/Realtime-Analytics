@@ -3,17 +3,22 @@ const EventTracker = (() => {
 
     // --- CONFIGURATION ---
     const cloudFunctionUrls = {
-        first_visit:'http://127.0.0.1:8081', // Points to your first_visit_function
-        session_start: 'https://your-region-project.cloudfunctions.net/session_start_function', // Placeholder
+        first_visit: 'http://127.0.0.1:8081',//'https://asia-south1-svaraflow.cloudfunctions.net/process_first_visit',// // Points to your first_visit_function
+        session_start: 'http://127.0.0.1:8089', // Placeholder
         view_item: 'http://127.0.0.1:8083',     // Your local view_item_tracker URL
         view_promotion: 'http://127.0.0.1:8084', // New: Your local view_promotion_tracker URL
-        click:'http://127.0.0.1:8080', // CORRECTED: Removed leading space
-        scroll: 'https://your-region-project.cloudfunctions.net/scroll_function',             // Placeholder
-        page_view: 'http://127.0.0.1:8082', // Your local page_view_tracker URL
-        zooming: 'http://127.0.0.1:8085', // New: Your local zooming_tracker URL
-        submit_review: 'http://127.0.0.1:8086', // New: Your local submit_review_tracker URL
-        view_reviews: 'http://127.0.0.1:8087', // New: Your local view_reviews_tracker URL
-        // session_time is typically a derived metric, not a direct frontend event.
+        click:  'http://127.0.0.1:8080',//'https://asia-south1-svaraflow.cloudfunctions.net/track_ecommerce_event',//,//              // CORRECTED: Removed leading space
+        scroll: 'http://127.0.0.1:8088',             // Placeholder
+        page_view: 'http://127.0.0.1:8082',//'https://asia-south1-svaraflow.cloudfunctions.net/page_view_tracker',  // Your local page_view_tracker URL
+        // Corrected 'zooming' to 'Zooming' for consistency with process_zooming.py
+        Zooming: 'http://127.0.0.1:8085', // New: Your local zooming_tracker URL
+        User_Reviews: 'http://127.0.0.1:8086', // New: Your local submit_review_tracker URL
+        // Corrected 'view_reviews' to 'View_User_Reviews' for consistency with script.js and process_view_user_reviews.py
+        View_User_Reviews: 'http://127.0.0.1:8087', // New: Your local view_reviews_tracker URL
+        // Corrected 'view_product_details' to 'View_Product_Details' for consistency with process_view_product_details.py
+        View_Product_Details: 'http://127.0.0.1:8090', // This is for the "Show All Details" button click
+        // Added Session_Time for consistency with process_session_time.py (though not triggered by script.js)
+        Session_Time: 'http://127.0.0.1:8091', // New: Your local session_time_tracker URL (placeholder, needs definition in script.js to be used)
     };
 
     // --- Helper Functions for User/Session Management & Device Data ---
@@ -203,7 +208,7 @@ const EventTracker = (() => {
             if (e.ctrlKey || e.metaKey) { // Check for Ctrl (Windows/Linux) or Cmd (macOS) key
                 const zoomDirection = e.deltaY < 0 ? 'zoom_in' : 'zoom_out';
                 // Pass zoom_level directly to match BQ schema. If zoom_direction needed, add field to BQ.
-                track('zooming', { zoom_level: e.deltaY });
+                track('Zooming', { zoom_level: e.deltaY }); // Changed to 'Zooming'
             }
         }, { passive: true });
     };
