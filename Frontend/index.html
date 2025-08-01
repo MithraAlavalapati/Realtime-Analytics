@@ -373,6 +373,7 @@
 
             // --- CONFIGURATION ---
             const cloudFunctionUrls = {
+
                 first_visit: 'http://127.0.0.1:8081',
                 session_start:'http://127.0.0.1:8089',
                 view_item: 'http://127.0.0.1:8083',
@@ -385,6 +386,7 @@
                 view_user_reviews:'http://127.0.0.1:8087',
                 view_product_details: 'http://127.0.0.1:8090',
                 session_time: 'http://127.0.0.1:8091'
+
             };
 
             let currentUserId = null; // Internal tracker for the current user ID
@@ -635,7 +637,9 @@
             const resetInactivityTimer = () => {
                 clearTimeout(inactivityTimer);
                 lastActivityTime = Date.now();
+
                 sessionStorage.setItem(`session_last_activity_${currentUserId}`, lastActivityTime); // Persist last activity
+
                 inactivityTimer = setTimeout(endCurrentSession, SESSION_TIMEOUT_MS);
             };
 
@@ -1032,7 +1036,9 @@
                     item_id: product.id,
                     item_name: product.name,
                     price: product.price, // BigQuery field is 'price', not 'item_price'
+
                     item_category: product.category
+
                 }
             });
 
@@ -1087,13 +1093,17 @@
                     toggleDetailsBtn.textContent = 'Hide Details';
 
                     // Track 'View_Product_Details' event when details are expanded
+
                     EventTracker.track('view_product_details', {
+
                         item: { // Send item details again for context of what details were viewed
                             item_id: product.id,
                             item_name: product.name,
                             item_category: product.category,
+
                             price: product.price,
                         },
+
                     });
                 } else {
                     allDetailsSection.classList.remove('show-details'); // Remove class for animation
@@ -1149,6 +1159,7 @@
                 alertMessage("Please write your review before submitting.");
                 return;
             }
+
             const product = products.find(p => p.id === productId);
             if (!product) {
                 console.error('Product not found for review submission.');
@@ -1177,6 +1188,7 @@
                 viewed_reviews_count: 0 // Assuming no reviews are visible when a user submits a new one
             });
             
+
             alertMessage('Review submitted! (Demo)');
             // Clear form
             document.getElementById('review-rating').value = '5';
@@ -1190,6 +1202,7 @@
                 { user: 'Bob', rating: 4, text: 'Good quality, met my expectations.', timestamp: '2025-07-22' }
             ];
 
+
             const product = products.find(p => p.id === productId);
             if (!product) {
                 console.error('Product not found for review tracking.');
@@ -1201,6 +1214,7 @@
             EventTracker.track('view_user_reviews', {
                 viewed_reviews_count: mockReviews.length, // Send viewed_reviews_count directly at top-level
                 item: { item_id: product.id }, // Correctly send product_id nested under 'item'
+
             });
 
             const reviewsDisplayArea = document.getElementById('reviews-display-area');
@@ -1456,7 +1470,9 @@
                         promotion: { // Match BigQuery RECORD type for 'promotion'
                             promotion_id: promotionId,
                             promotion_name: promotionName,
+
                             creative_slot: creativeSlot // This will be mapped to creative_name in the track function
+
                         }
                     });
                 });
@@ -1467,7 +1483,9 @@
                 handleHashChange();
             } else {
                 // Determine initial page based on whether a user is "logged in" from previous session
+
                 const storedUserId = sessionStorage.getItem('user_id');
+
                 if (storedUserId && !storedUserId.startsWith('anon-')) { // Assume if not 'anon-', then it was a logged-in user
                     showPage('main');
                 } else {
@@ -1494,18 +1512,23 @@
             // Wire up the dynamically added buttons
             // Define global functions for manual triggers to be accessible from console/buttons
             window.simulateProductDetailsView = (productId, productName, productCategory, productPrice, productBrand, productVariant) => {
+
                 EventTracker.track('view_product_details', {
+
                     item: {
                         item_id: productId,
                         item_name: productName,
                         item_category: productCategory,
                         price: productPrice,
+
                     }
+
                 });
                 alertMessage(`'View_Product_Details' event sent for ${productName}.`);
             };
 
             window.simulateUserReviewSubmission = (productId, reviewText, rating) => {
+
                 const dummyProduct = products.find(p => p.id === productId);
                 const reviewId = 'review-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
                 EventTracker.track('user_reviews', {
@@ -1528,6 +1551,7 @@
 
             window.simulateViewUserReviews = (productId, count) => {
                 EventTracker.track('view_user_reviews', {
+
                     viewed_reviews_count: count,
                     item: { item_id: productId }
                 });
