@@ -6,15 +6,17 @@ import datetime
 import json
 import os
 import tenacity
+from dotenv import load_dotenv
+
+# --- Load environment variables from .env file ---
+# This is where the script finds your GOOGLE_API_KEY
+load_dotenv()
 
 # --- CONFIGURATION ---
 PROJECT_ID = os.environ.get('GCP_PROJECT', 'svaraflow')
 DATASET_ID = os.environ.get('DATASET_ID', 'test_realtime_events')
 TABLE_ID = os.environ.get('TABLE_ID', 'user_reviews')
 SERVICE_ACCOUNT_KEY_PATH = "key.json"
-
-# --- Gemini API Key (Hardcoded for this request - NOT FOR PRODUCTION) ---
-GEMINI_API_KEY = "AIzaSyBGPTFPMnoovlwMkL517krvOmqLAoe1OGg"
 
 # --- Initialize Clients with key.json credentials ---
 client = None
@@ -30,8 +32,8 @@ try:
     client = bigquery.Client(project=PROJECT_ID, credentials=credentials)
     table_ref = client.dataset(DATASET_ID).table(TABLE_ID)
 
-    # Configure the Gemini API with the hardcoded key
-    genai.configure(api_key=GEMINI_API_KEY)
+    # Configure the Gemini API (key is now loaded from .env)
+    genai.configure()
 
     print(f"DEBUG: BigQuery and Gemini clients initialized.")
 except Exception as e:
