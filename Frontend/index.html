@@ -291,7 +291,8 @@
             </header>
             <div class="p-6">
                 <h2 class="text-2xl font-semibold text-gray-800 mb-6">Today's Hot Deals!</h2>
-                <div class="promo-banner-grid"> <a href="#category=Fashion" class="block">
+                <div class="promo-banner-grid">
+                    <a href="#category=Fashion" class="block">
                         <img src="https://placehold.co/600x200/ff7f50/ffffff?text=Fashion+Sale+20%25+Off" alt="Fashion Sale Banner" class="promo-banner"
                              data-promotion-name="Summer Fashion Sale" data-creative-slot="Top Banner 1">
                     </a>
@@ -373,20 +374,19 @@
             // --- CONFIGURATION ---
             const cloudFunctionUrls = {
                 first_visit: 'http://127.0.0.1:8081',
-                session_start: 'http://127.0.0.1:8089',
+                session_start:'http://127.0.0.1:8089',
                 view_item: 'http://127.0.0.1:8083',
                 view_promotion: 'http://127.0.0.1:8084',
-                click:  'http://127.0.0.1:8080',
+                click: 'http://127.0.0.1:8080',
                 scroll: 'http://127.0.0.1:8088',
-                page_view: 'http://127.0.0.1:8082',
-                Zooming: 'http://127.0.0.1:8085',
-                User_Reviews: 'http://127.0.0.1:8086',
-                View_User_Reviews: 'http://127.0.0.1:8087',
-                View_Product_Details: 'http://127.0.0.1:8090',
-                Session_Time: 'https://asia-south1-svaraflow.cloudfunctions.net/process_session_time',
+                view_page: 'http://127.0.0.1:8082',
+                zooming: 'http://127.0.0.1:8085',
+                user_reviews:'http://127.0.0.1:8086',
+                view_user_reviews:'http://127.0.0.1:8087',
+                view_product_details: 'http://127.0.0.1:8090',
+                session_time: 'http://127.0.0.1:8091'
             };
 
-            let sessionStartTime = null; // To track session duration for Session_Time event
             let currentUserId = null; // Internal tracker for the current user ID
 
             const getOrCreateUserId = () => {
@@ -395,8 +395,8 @@
                     return currentUserId;
                 }
 
-                // Check localStorage for a previously set ID (e.g., from a prior login session)
-                let userId = localStorage.getItem('user_id');
+                // Check sessionStorage for a previously set ID (e.g., from a prior login session)
+                let userId = sessionStorage.getItem('user_id');
                 if (userId) {
                     currentUserId = userId; // Store it internally for quicker access
                     return userId;
@@ -405,7 +405,7 @@
                 // If no ID found (first time or after logout/clear), generate an anonymous one
                 // This acts as a fallback for unauthenticated users
                 userId = 'anon-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
-                localStorage.setItem('user_id', userId); // Store anonymous ID
+                sessionStorage.setItem('user_id', userId); // Store anonymous ID
                 currentUserId = userId;
                 return userId;
             };
@@ -415,18 +415,18 @@
                 if (typeof newUserId === 'string' && newUserId.trim() !== '') {
                     const oldUserId = currentUserId; // Store old ID for first_visit check
                     currentUserId = newUserId;
-                    localStorage.setItem('user_id', newUserId); // Persist the new user ID
+                    sessionStorage.setItem('user_id', newUserId); // Persist the new user ID
 
                     // If the user ID has changed (new login for an existing session)
                     // or if it's the very first time setting a logged-in ID,
                     // we should re-evaluate first_visit.
                     if (oldUserId !== newUserId) {
                         const firstVisitKey = `first_visit_tracked_for_${newUserId}`;
-                        if (!localStorage.getItem(firstVisitKey)) {
+                        if (!sessionStorage.getItem(firstVisitKey)) {
                             // This is the first time we've seen this *specific logged-in user ID*
                             // for analytics. Fire first_visit for them.
                             track('first_visit');
-                            localStorage.setItem(firstVisitKey, 'true');
+                            sessionStorage.setItem(firstVisitKey, 'true');
                         }
                     }
                 } else {
@@ -437,23 +437,23 @@
             // Function to clear user ID on logout
             const clearUserId = () => {
                 currentUserId = null;
-                localStorage.removeItem('user_id');
+                sessionStorage.removeItem('user_id');
                 // Clear all first_visit flags to allow new first_visits for new logins on this browser
-                for (let i = 0; i < localStorage.length; i++) {
-                    const key = localStorage.key(i);
+                for (let i = 0; i < sessionStorage.length; i++) {
+                    const key = sessionStorage.key(i);
                     if (key.startsWith('first_visit_tracked_for_')) {
-                        localStorage.removeItem(key);
+                        sessionStorage.removeItem(key);
                     }
                 }
             };
 
 
             const getOrCreateSessionId = () => {
-                // Modified: Now session ID is user-centric and persistent in localStorage
-                let sessionId = localStorage.getItem(`session_id_${currentUserId}`);
+                // Modified: Now session ID is user-centric and persistent in sessionStorage
+                let sessionId = sessionStorage.getItem(`session_id_${currentUserId}`);
                 if (!sessionId) {
                     sessionId = 'session-' + currentUserId + '-' + Date.now() + '-' + Math.random().toString(36).substr(2, 5);
-                    localStorage.setItem(`session_id_${currentUserId}`, sessionId);
+                    sessionStorage.setItem(`session_id_${currentUserId}`, sessionId);
                 }
                 return sessionId;
             };
@@ -470,9 +470,8 @@
 
                 return {
                     category: category,
-                    operating_system: navigator.platform,
-                    browser: getBrowserName(userAgent),
-                    screen_resolution: `${window.screen.width}x${window.screen.height}`
+                    os: navigator.platform,
+                    browser: getBrowserName(userAgent)
                 };
             };
 
@@ -548,18 +547,58 @@
                     traffic_source: getTrafficSource(),
                 };
 
-                const data = {
-                    ...commonPayload,
-                    ...specificPayload // Merge event-specific parameters (including nested records)
-                };
+                // The schemas have slightly different field names for nested objects
+                // We need to map them correctly before sending
+                const finalPayload = { ...commonPayload };
 
-                const payload = JSON.stringify(data);
+                if (specificPayload.item) {
+                    finalPayload.item = specificPayload.item;
+                }
+
+                if (specificPayload.promotion) {
+                    // The schema for `view_promotion` uses the 'promotion' record.
+                    // The schema has `promotion_id`, `promotion_name`, and `creative_name`.
+                    // We need to rename `creative_slot` to `creative_name`.
+                    finalPayload.promotion = {
+                        promotion_id: specificPayload.promotion.promotion_id,
+                        promotion_name: specificPayload.promotion.promotion_name,
+                        creative_name: specificPayload.promotion.creative_slot // Renaming here
+                    };
+                }
+
+                // --- UPDATED: Handle `user_reviews` schema fields correctly ---
+                if (eventName === 'user_reviews') {
+                    finalPayload.item = specificPayload.item;
+                    finalPayload.review = specificPayload.review;
+                    finalPayload.viewed_reviews_count = specificPayload.viewed_reviews_count;
+                }
+                // --- END UPDATED SECTION ---
+
+                if (specificPayload.scroll_depth_percentage) {
+                    finalPayload.scroll_depth_percentage = specificPayload.scroll_depth_percentage;
+                }
+
+                if (specificPayload.zoom_level) {
+                    finalPayload.zoom_level = specificPayload.zoom_level;
+                }
+
+                if (specificPayload.viewed_reviews_count && eventName === 'view_user_reviews') {
+                    finalPayload.viewed_reviews_count = specificPayload.viewed_reviews_count;
+                    finalPayload.item = specificPayload.item;
+                }
+
+                if (specificPayload.session_duration) {
+                    finalPayload.session_duration = specificPayload.session_duration;
+                }
+
+
+                const payload = JSON.stringify(finalPayload);
 
                 // --- Debugging additions ---
                 console.log(`[EventTracker] Preparing to send event: ${eventName}`);
                 console.log(`[EventTracker] Target URL: ${url}`);
                 console.log(`[EventTracker] Payload (JSON string):`, payload);
-                console.log(`[EventTracker] Payload (Parsed Object):`, data);
+                console.log(`[EventTracker] Payload (Parsed Object):`, finalPayload);
                 // --- End Debugging additions ---
 
                 fetch(url, {
@@ -596,40 +635,40 @@
             const resetInactivityTimer = () => {
                 clearTimeout(inactivityTimer);
                 lastActivityTime = Date.now();
+                sessionStorage.setItem(`session_last_activity_${currentUserId}`, lastActivityTime); // Persist last activity
                 inactivityTimer = setTimeout(endCurrentSession, SESSION_TIMEOUT_MS);
-                localStorage.setItem(`session_last_activity_${currentUserId}`, lastActivityTime); // Persist last activity
             };
 
             const endCurrentSession = () => {
                 console.log("[EventTracker] endCurrentSession called!"); // ADDED FOR DEBUGGING
-                if (!currentUserId || !localStorage.getItem(`session_id_${currentUserId}`)) {
+                if (!currentUserId || !sessionStorage.getItem(`session_id_${currentUserId}`)) {
                     console.log("[EventTracker] No active session for this user to end, returning."); // ADDED FOR DEBUGGING
                     return; // No active session for this user to end
                 }
 
-                const currentSessionId = localStorage.getItem(`session_id_${currentUserId}`);
-                const sessionStartTimeMs = parseInt(localStorage.getItem(`session_start_time_${currentUserId}`) || Date.now());
+                const currentSessionId = sessionStorage.getItem(`session_id_${currentUserId}`);
+                const sessionStartTimeMs = parseInt(sessionStorage.getItem(`session_start_time_${currentUserId}`) || Date.now());
                 const sessionDurationSeconds = Math.round((Date.now() - sessionStartTimeMs) / 1000);
 
                 // Fire Session_Time event with the duration
-                track('Session_Time', { session_duration: sessionDurationSeconds });
+                track('session_time', { session_duration: sessionDurationSeconds });
 
                 // Clear session-specific storage for this user
-                localStorage.removeItem(`session_id_${currentUserId}`);
-                localStorage.removeItem(`session_start_time_${currentUserId}`);
-                localStorage.removeItem(`session_last_activity_${currentUserId}`);
+                sessionStorage.removeItem(`session_id_${currentUserId}`);
+                sessionStorage.removeItem(`session_start_time_${currentUserId}`);
+                sessionStorage.removeItem(`session_last_activity_${currentUserId}`);
 
                 console.log(`[EventTracker] Session ended for user ${currentUserId} (Session ID: ${currentSessionId}, Duration: ${sessionDurationSeconds}s).`);
             };
 
             const startNewSession = () => {
                 console.log("[EventTracker] startNewSession called!"); // ADDED FOR DEBUGGING
-                endCurrentSession(); // Ensure any old session is ended and Session_Time is fired
-                
+                // No need to call endCurrentSession here directly, as the init logic
+                // or logout handles previous session ending.
                 // Generate a new session ID for the current user
                 const newSessionId = 'session-' + currentUserId + '-' + Date.now() + '-' + Math.random().toString(36).substr(2, 5);
-                localStorage.setItem(`session_id_${currentUserId}`, newSessionId);
-                localStorage.setItem(`session_start_time_${currentUserId}`, Date.now()); // Store session start time
+                sessionStorage.setItem(`session_id_${currentUserId}`, newSessionId);
+                sessionStorage.setItem(`session_start_time_${currentUserId}`, Date.now()); // Store session start time
                 
                 track('session_start'); // Fire the session_start event
                 resetInactivityTimer(); // Start timer for new session
@@ -639,11 +678,11 @@
 
             // --- INITIALIZATION & AUTOMATIC EVENTS ---
             const init = () => {
-                // Ensure currentUserId is populated first (either from localStorage or as anon)
+                // Ensure currentUserId is populated first (either from sessionStorage or as anon)
                 getOrCreateUserId();
 
                 // Check if an existing session is still valid
-                const lastActivity = parseInt(localStorage.getItem(`session_last_activity_${currentUserId}`) || 0);
+                const lastActivity = parseInt(sessionStorage.getItem(`session_last_activity_${currentUserId}`) || 0);
                 const now = Date.now();
 
                 if (now - lastActivity > SESSION_TIMEOUT_MS) {
@@ -658,15 +697,15 @@
                 
                 // --- CORRECTED FIRST_VISIT LOGIC: Per User ID ---
                 const firstVisitKey = `first_visit_tracked_for_${currentUserId}`; // Key unique to this user ID
-                if (!localStorage.getItem(firstVisitKey)) {
+                if (!sessionStorage.getItem(firstVisitKey)) {
                     track('first_visit');
-                    localStorage.setItem(firstVisitKey, 'true'); // Mark as tracked for *this specific user*
+                    sessionStorage.setItem(firstVisitKey, 'true'); // Mark as tracked for *this specific user*
                 }
                 // --- END CORRECTED FIRST_VISIT LOGIC ---
 
 
                 // Track initial page view when the tracker initializes
-                track('page_view');
+                track('view_page');
 
                 // Universal activity listeners to keep session alive
                 ['mousemove', 'mousedown', 'keydown', 'scroll', 'touchstart'].forEach(event => {
@@ -706,7 +745,7 @@
                     if (e.ctrlKey || e.metaKey) { // Check for Ctrl (Windows/Linux) or Cmd (macOS) key
                         e.preventDefault(); // Prevent browser zoom
                         const zoomDelta = e.deltaY; // Amount of scroll
-                        track('Zooming', { zoom_level: zoomDelta });
+                        track('zooming', { zoom_level: zoomDelta });
                     }
                 }, { passive: false }); // **FIX: Changed to passive: false because we use preventDefault()**
 
@@ -735,7 +774,7 @@
             };
         })();
 
-        // --- Mock Product Data (Content from script.js) ---
+        // --- Mock Product Data ---
         const products = [
             // Fashion - 20 products
             { id: 'f001', name: 'Elegant Evening Dress', category: 'Fashion', price: 89.99, image: 'https://placehold.co/300x200/1A2A80/ffffff?text=Elegant+Dress', description: 'A stunning dress perfect for evening events. Made from high-quality silk blend.', brand: 'Glamourous Attire', variant: 'Blue-Large' },
@@ -804,628 +843,740 @@
             { id: 'h019', name: 'Rechargeable LED Lantern', category: 'Home', price: 28.00, image: 'https://placehold.co/300x200/1A2A80/ffffff?text=LED+Lantern', description: 'Portable and bright lighting for power outages or camping.', brand: 'BrightLite', variant: 'Dimmable' },
             { id: 'h020', name: 'Memory Foam Pillow', category: 'Home', price: 50.00, image: 'https://placehold.co/300x200/1A2A80/ffffff?text=Memory+Foam+Pillow', description: 'Ergonomic pillow for comfortable and supportive sleep.', brand: 'DreamCloud', variant: 'Standard' },
 
-            // Books - 20 products
-            { id: 'b001', name: 'The Silent Patient', category: 'Books', price: 15.00, image: 'https://placehold.co/300x200/1A2A80/ffffff?text=Silent+Patient', description: 'A shocking psychological thriller with a brilliant twist.', brand: 'Celadon Books', variant: 'Hardcover' },
-            { id: 'b002', name: 'Atomic Habits', category: 'Books', price: 22.50, image: 'https://placehold.co/300x200/1A2A80/ffffff?text=Atomic+Habits', description: 'An easy & proven way to build good habits & break bad ones.', brand: 'Avery', variant: 'Paperback' },
-            { id: 'b003', name: 'Where the Crawdads Sing', category: 'Books', price: 16.00, image: 'https://placehold.co/300x200/1A2A80/ffffff?text=Crawl+Dads+Sing', description: 'A captivating mystery and coming-of-age story.', brand: 'G.P. Putnam\'s Sons', variant: 'Paperback' },
-            { id: 'b004', name: 'Dune', category: 'Books', price: 14.00, image: 'https://placehold.co/300x200/1A2A80/ffffff?text=Dune', description: 'The seminal science fiction epic of a desert planet and its messiah.', brand: 'Ace Books', variant: 'Paperback' },
-            { id: 'b005', name: 'The Midnight Library', category: 'Books', price: 17.50, image: 'https://placehold.co/300x200/1A2A80/ffffff?text=Midnight+Library', description: 'A heartwarming and philosophical tale about life choices.', brand: 'Viking', variant: 'Hardcover' },
-            { id: 'b006', name: 'Becoming', category: 'Books', price: 20.00, image: 'https://placehold.co/300x200/1A2A80/ffffff?text=Becoming', description: 'Michelle Obama\'s intimate, powerful, and inspiring memoir.', brand: 'Crown', variant: 'Hardcover' },
-            { id: 'b007', name: 'Educated', category: 'Books', price: 18.00, image: 'https://placehold.co/300x200/1A2A80/ffffff?text=Educated', description: 'A memoir of a young girl who pursued knowledge despite a tyrannical father.', brand: 'Random House', variant: 'Paperback' },
-            { id: 'b008', name: 'Sapiens: A Brief History of Humankind', category: 'Books', price: 25.00, image: 'https://placehold.co/300x200/1A2A80/ffffff?text=Sapiens', description: 'A sweeping history of Homo sapiens from the Stone Age to the present.', brand: 'Harper Perennial', variant: 'Paperback' },
-            { id: 'b009', name: 'The Great Gatsby', category: 'Books', price: 12.00, image: 'https://placehold.co/300x200/1A2A80/ffffff?text=Gatsby', description: 'A classic novel of the Jazz Age, love, and the American Dream.', brand: 'Scribner', variant: 'Paperback' },
-            { id: 'b010', name: 'The Alchemist', category: 'Books', price: 13.00, image: 'https://placehold.co/300x200/1A2A80/ffffff?text=Alchemist', description: 'An allegorical novel about a shepherd boy who journeys to find treasure.', brand: 'HarperOne', variant: 'Paperback' },
-            { id: 'b011', name: 'Fahrenheit 451', category: 'Books', price: 11.50, image: 'https://placehold.co/300x200/1A2A80/ffffff?text=Fahrenheit+451', description: 'A dystopian novel about a future society where books are outlawed.', brand: 'Simon & Schuster', variant: 'Paperback' },
-            { id: 'b012', name: '1984', category: 'Books', price: 10.00, image: 'https://placehold.co/300x200/1A2A80/ffffff?text=1984', description: 'A classic dystopian social science fiction novel by George Orwell.', brand: 'Signet Classic', variant: 'Paperback' },
-            { id: 'b013', name: 'To Kill a Mockingbird', category: 'Books', price: 14.00, image: 'https://placehold.co/300x200/1A2A80/ffffff?text=Mockingbird', description: 'A timeless novel about racial injustice and childhood in the American South.', brand: 'Grand Central Publishing', variant: 'Paperback' },
-            { id: 'b014', name: 'The Hobbit', category: 'Books', price: 16.00, image: 'https://placehold.co/300x200/1A2A80/ffffff?text=The+Hobbit', description: 'J.R.R. Tolkien\'s classic fantasy adventure novel.', brand: 'Ballantine Books', variant: 'Paperback' },
-            { id: 'b015', name: 'Pride and Prejudice', category: 'Books', price: 9.50, image: 'https://placehold.co/300x200/1A2A80/ffffff?text=Pride+Prejudice', description: 'Jane Austen\'s beloved novel of manners, love, and society.', brand: 'Penguin Classics', variant: 'Paperback' },
-            { id: 'b016', name: 'The Lord of the Rings', category: 'Books', price: 28.00, image: 'https://placehold.co/300x200/1A2A80/ffffff?text=Lord+of+Rings', description: 'The epic high-fantasy adventure by J.R.R. Tolkien.', brand: 'Houghton Mifflin Harcourt', variant: 'Box Set' },
-            { id: 'b017', name: 'Gone Girl', category: 'Books', price: 15.50, image: 'https://placehold.co/300x200/1A2A80/ffffff?text=Gone+Girl', description: 'A thrilling mystery that explores the dark side of marriage.', brand: 'Broadway Books', variant: 'Paperback' },
-            { id: 'b018', name: 'The Catcher in the Rye', category: 'Books', price: 10.50, image: 'https://placehold.co/300x200/1A2A80/ffffff?text=Catcher+Rye', description: 'J.D. Salinger\'s classic novel of adolescent angst and alienation.', brand: 'Little, Brown and Company', variant: 'Paperback' },
-            { id: 'b019', name: 'The Road', category: 'Books', price: 13.50, image: 'https://placehold.co/300x200/1A2A80/ffffff?text=The+Road', description: 'A post-apocalyptic novel about a father and son\'s journey.', brand: 'Vintage', variant: 'Paperback' },
-            { id: 'b020', name: 'Educated', category: 'Books', price: 18.00, image: 'https://placehold.co/300x200/1A2A80/ffffff?text=Educated', description: 'A powerful memoir about a young girl\'s quest for knowledge.', brand: 'Random House', variant: 'Hardcover' },
-
-            // Sports - 20 products
-            { id: 's001', name: 'Yoga Mat Premium', category: 'Sports', price: 25.00, image: 'https://placehold.co/300x200/1A2A80/ffffff?text=Yoga+Mat', description: 'Durable and comfortable yoga mat for all your fitness needs.', brand: 'ZenFlow', variant: '6mm-Blue' },
-            { id: 's002', name: 'Resistance Band Set', category: 'Sports', price: 18.00, image: 'https://placehold.co/300x200/1A2A80/ffffff?text=Resistance+Bands', description: 'Versatile resistance bands for full-body workouts.', brand: 'FitFlex', variant: 'Light-Heavy' },
-            { id: 's003', name: 'Smart Jump Rope', category: 'Sports', price: 35.00, image: 'https://placehold.co/300x200/1A2A80/ffffff?text=Smart+Jump+Rope', description: 'Track your jumps and calories with this smart jump rope.', brand: 'LeapMetric', variant: 'Digital' },
-            { id: 's004', name: 'Dumbbell Set Adjustable', category: 'Sports', price: 120.00, image: 'https://placehold.co/300x200/1A2A80/ffffff?text=Dumbbell+Set', description: 'Space-saving adjustable dumbbells for various weights.', brand: 'IronFit', variant: '5-50lbs' },
-            { id: 's005', name: 'Fitness Tracker Watch', category: 'Sports', price: 80.00, image: 'https://placehold.co/300x200/1A2A80/ffffff?text=Fitness+Tracker', description: 'Monitor heart rate, steps, and sleep with this advanced tracker.', brand: 'PacePro', variant: 'Black' },
-            { id: 's006', name: 'Cycling Helmet Aerodynamic', category: 'Sports', price: 60.00, image: 'https://placehold.co/300x200/1A2A80/ffffff?text=Cycling+Helmet', description: 'Lightweight and aerodynamic helmet for road cycling.', brand: 'AeroRide', variant: 'White-M' },
-            { id: 's007', name: 'Basketball Official Size', category: 'Sports', price: 30.00, image: 'https://placehold.co/300x200/1A2A80/ffffff?text=Basketball', description: 'Durable basketball for indoor and outdoor play.', brand: 'HoopStar', variant: 'Size 7' },
-            { id: 's008', name: 'Soccer Ball Training', category: 'Sports', price: 22.00, image: 'https://placehold.co/300x200/1A2A80/ffffff?text=Soccer+Ball', description: 'High-quality soccer ball for practice and casual games.', brand: 'KickMaster', variant: 'Size 5' },
-            { id: 's009', name: 'Tennis Racket Graphite', category: 'Sports', price: 90.00, image: 'https://placehold.co/300x200/1A2A80/ffffff?text=Tennis+Racket', description: 'Lightweight graphite racket for enhanced power and control.', brand: 'SmashPro', variant: 'Grip 2' },
-            { id: 's010', name: 'Swimming Goggles Anti-Fog', category: 'Sports', price: 15.00, image: 'https://placehold.co/300x200/1A2A80/ffffff?text=Swim+Goggles', description: 'Comfortable and anti-fog goggles for clear underwater vision.', brand: 'DiveClear', variant: 'Blue' },
-            { id: 's011', name: 'Camping Tent 2-Person', category: 'Sports', price: 150.00, image: 'https://placehold.co/300x200/1A2A80/ffffff?text=Camping+Tent', description: 'Lightweight and easy-to-pitch tent for outdoor adventures.', brand: 'TrailBlazer', variant: 'Green' },
-            { id: 's012', name: 'Hiking Backpack 40L', category: 'Sports', price: 70.00, image: 'https://placehold.co/300x200/1A2A80/ffffff?text=Hiking+Backpack', description: 'Comfortable and spacious backpack for day hikes and overnights.', brand: 'ExplorePack', variant: 'Red' },
-            { id: 's013', name: 'Fishing Rod Combo', category: 'Sports', price: 55.00, image: 'https://placehold.co/300x200/1A2A80/ffffff?text=Fishing+Rod', description: 'Complete fishing rod and reel combo for beginners and experts.', brand: 'Angler\'s Dream', variant: 'Spinning' },
-            { id: 's014', name: 'Golf Club Set Junior', category: 'Sports', price: 180.00, image: 'https://placehold.co/300x200/1A2A80/ffffff?text=Golf+Set+Junior', description: 'Perfect starter golf club set for aspiring young golfers.', brand: 'JuniorPro', variant: 'Ages 9-12' },
-            { id: 's015', name: 'Skateboard Complete', category: 'Sports', price: 65.00, image: 'https://placehold.co/300x200/1A2A80/ffffff?text=Skateboard', description: 'Ready-to-ride skateboard for cruising and tricks.', brand: 'StreetGlide', variant: 'Maple Deck' },
-            { id: 's016', name: 'Roller Skates Adjustable', category: 'Sports', price: 75.00, image: 'https://placehold.co/300x200/1A2A80/ffffff?text=Roller+Skates', description: 'Adjustable roller skates for growing feet or sharing.', brand: 'RollEasy', variant: 'Size 4-8' },
-            { id: 's017', name: 'Badminton Racket Set', category: 'Sports', price: 40.00, image: 'https://placehold.co/300x200/1A2A80/ffffff?text=Badminton+Set', description: 'Includes rackets, shuttlecocks, and carrying case for fun games.', brand: 'ShuttlePlay', variant: '2-Player' },
-            { id: 's018', name: 'Volleyball Soft Touch', category: 'Sports', price: 28.00, image: 'https://placehold.co/300x200/1A2A80/ffffff?text=Volleyball', description: 'Soft touch volleyball, ideal for casual play and training.', brand: 'CourtReady', variant: 'Indoor/Outdoor' },
-            { id: 's019', name: 'Baseball Glove Adult', category: 'Sports', price: 50.00, image: 'https://placehold.co/300x200/1A2A80/ffffff?text=Baseball+Glove', description: 'Durable leather baseball glove for adult players.', brand: 'DiamondGuard', variant: '12-inch' },
-            { id: 's020', name: 'Punching Bag Heavy Duty', category: 'Sports', price: 99.00, image: 'https://placehold.co/300x200/1A2A80/ffffff?text=Punching+Bag', description: 'Ideal for boxing, kickboxing, and general fitness training.', brand: 'PowerPunch', variant: '100lb' },
-        ];
-
-        // --- Global State & DOM Elements ---
-        let cartItems = [];
-        let currentPage = 'login';
-        const loginPage = document.getElementById('login-page');
-        const mainPage = document.getElementById('main-page');
-        const categoryPage = document.getElementById('category-page');
-        const cartPage = document.getElementById('cart-page');
-        const productDetailPage = document.getElementById('product-detail-page');
-        const emailInput = document.getElementById('email');
-        const passwordInput = document.getElementById('password');
-        const loginBtn = document.getElementById('login-btn');
-        const loginError = document.getElementById('login-error');
-        const cartIconMain = document.getElementById('cart-icon');
-        const cartCountMain = document.getElementById('cart-count');
-        const cartIconCategory = document.getElementById('cart-icon-category');
-        const cartCountCategory = document.getElementById('cart-count-category');
-        const cartIconDetail = document.getElementById('cart-icon-detail');
-        const cartCountDetail = document.getElementById('cart-count-detail');
-        const categoriesContainer = document.getElementById('categories-container');
-        const productList = document.getElementById('product-list');
-        const categoryTitle = document.getElementById('category-title');
-        const categoryProductList = document.getElementById('category-product-list');
-        const backToMainBtnCategory = document.getElementById('back-to-main-btn-category');
-        const backToMainBtnCart = document.getElementById('back-to-main-btn-cart');
-        const backFromDetailBtn = document.getElementById('back-from-detail-btn');
-        const productDetailContent = document.getElementById('product-detail-content');
-        const cartItemsContainer = document.getElementById('cart-items-container');
-        const cartTotalSpan = document.getElementById('cart-total');
-        const checkoutBtn = document.getElementById('checkout-btn');
-        const emptyCartMessage = document.getElementById('empty-cart-message');
-        const cartSummary = document.getElementById('cart-summary');
-        const signOutBtn = document.getElementById('sign-out-btn');
-
-
-        // --- Utility Functions ---
-
-        function hideAllPages() {
-            loginPage.classList.add('hidden');
-            mainPage.classList.add('hidden');
-            categoryPage.classList.add('hidden');
-            cartPage.classList.add('hidden');
-            productDetailPage.classList.add('hidden');
-        }
-
-        function showPage(pageName, options = {}) {
-            hideAllPages();
-            currentPage = pageName;
-
-            let newHash = '';
-            if (pageName === 'category' && options.category) {
-                newHash = `category=${encodeURIComponent(options.category)}`;
-            } else if (pageName === 'product-detail' && options.productId) {
-                newHash = `product=${options.productId}`;
-            } else if (pageName === 'cart') {
-                newHash = 'cart';
-            }
-
-            if (window.location.hash.substring(1) !== newHash) {
-                window.location.hash = newHash;
-            }
-
-            switch (pageName) {
-                case 'login':
-                    loginPage.classList.remove('hidden');
-                    emailInput.value = '';
-                    passwordInput.value = '';
-                    loginError.classList.add('hidden');
-                    break;
-                case 'main':
-                    mainPage.classList.remove('hidden');
-                    renderCategories();
-                    renderProducts(products, productList);
-                    updateCartCounts();
-                    // EventTracker.track('page_view'); // page_view already tracked in EventTracker.init()
-                    break;
-                case 'category':
-                    categoryPage.classList.remove('hidden');
-                    categoryTitle.textContent = options.category;
-                    const filteredProducts = products.filter(p => p.category === options.category);
-                    renderProducts(filteredProducts, categoryProductList);
-                    updateCartCounts();
-                    // EventTracker.track('page_view'); // page_view already tracked in EventTracker.init()
-                    break;
-                case 'cart':
-                    cartPage.classList.remove('hidden');
-                    renderCart();
-                    // EventTracker.track('page_view'); // page_view already tracked in EventTracker.init()
-                    break;
-                case 'product-detail':
-                    productDetailPage.classList.remove('hidden');
-                    renderProductDetail(options.productId);
-                    updateCartCounts();
-                    // EventTracker.track('page_view'); // page_view already tracked in EventTracker.init()
-                    break;
-                default:
-                    showPage('login');
-            }
-        }
-
-        function renderProducts(productsToRender, container) {
-            container.innerHTML = '';
-            if (productsToRender.length === 0) {
-                container.innerHTML = '<p class="text-gray-500 text-center col-span-full">No products found.</p>';
-                return;
-            }
-
-            productsToRender.forEach(product => {
-                const productCard = document.createElement('div');
-                productCard.className = 'product-card bg-white rounded-lg shadow-md p-4 flex flex-col';
-                productCard.innerHTML = `
-                    <a href="#product=${product.id}" class="flex flex-col flex-grow text-center">
-                        <img src="${product.image}" alt="${product.name}" class="w-full h-32 object-cover rounded-md mb-4">
-                        <h3 class="text-lg font-semibold text-gray-800 mb-2 flex-grow">${product.name}</h3>
-                        <p class="text-gray-600 mb-3">${product.category}</p>
-                        <p class="text-xl font-bold text-indigo-600 mb-4">$${product.price.toFixed(2)}</p>
-                    </a>
-                    <button class="add-to-cart-btn btn-primary w-full mt-auto" data-product-id="${product.id}">Add to Cart</button>
-                `;
-                container.appendChild(productCard);
-            });
-
-            container.querySelectorAll('.add-to-cart-btn').forEach(button => {
-                button.addEventListener('click', (event) => {
-                    event.stopPropagation();
-                    const productId = event.target.dataset.productId;
-                    addToCart(productId);
-                });
-            });
-        }
-
-        function renderProductDetail(productId) {
-            const product = products.find(p => p.id === productId);
-            if (!product) {
-                productDetailContent.innerHTML = '<p class="text-red-500">Product not found.</p>';
-                return;
-            }
-
-            // Track view_item event when product detail page is rendered
-            // Pass item details correctly nested under 'item'
-            EventTracker.track('view_item', { // Event name is 'view_item'
-                item: { // Match the BigQuery RECORD type for 'item'
-                    item_id: product.id,
-                    item_name: product.name,
-                    price: product.price, // BigQuery field is 'price', not 'item_price'
-                    item_category: product.category,
-                    item_brand: product.brand || null,
-                    item_varient: product.variant || null
-                }
-            });
-
-            // Populate product detail content
-            productDetailContent.innerHTML = `
-                <div class="product-image-container">
-                    <img src="${product.image}" alt="${product.name}" class="w-full h-auto object-cover rounded-lg shadow-md">
-                </div>
-                <div class="product-info flex flex-col">
-                    <h2 class="text-3xl font-bold text-gray-800 mb-2">${product.name}</h2>
-                    <p class="text-lg text-gray-600 mb-4">${product.category}</p>
-                    <p class="text-gray-700 text-base mb-6">${product.description}</p>
-                    <div class="mt-auto">
-                        <p class="text-3xl font-bold text-indigo-600 mb-6">$${product.price.toFixed(2)}</p>
-                        <button id="detail-add-to-cart-btn" class="btn-primary w-full" data-product-id="${product.id}">Add to Cart</button>
-                    </div>
-                </div>
-            `;
-
-            // Render review section for this product
-            renderReviewSection(productId);
-
-            document.getElementById('detail-add-to-cart-btn').addEventListener('click', (event) => {
-                const id = event.target.dataset.productId;
-                addToCart(id);
-            });
-
-            // --- "All Details" Section Logic ---
-            const toggleDetailsBtn = document.getElementById('toggle-details-btn');
-            const allDetailsSection = document.getElementById('all-details-section');
-
-            // Populate the details section
-            allDetailsSection.innerHTML = `
-                <h5>Product Specifications</h5>
-                <p><strong>Brand:</strong> ${product.brand || 'N/A'}</p>
-                <p><strong>Category:</strong> ${product.category || 'N/A'}</p>
-                <p><strong>Variant:</strong> ${product.variant || 'N/A'}</p>
-                <p><strong>Description:</strong> ${product.description || 'N/A'}</p>
-                <p><strong>Product ID:</strong> ${product.id}</p>
-            `;
-
-            // Ensure the section is hidden initially via JS
-            allDetailsSection.classList.add('hidden'); // Add 'hidden' class back if it was removed by previous CSS override
-            toggleDetailsBtn.textContent = 'Show All Details';
-
-
-            // Add event listener to toggle details visibility
-            toggleDetailsBtn.addEventListener('click', () => {
-                if (allDetailsSection.classList.contains('hidden')) {
-                    allDetailsSection.classList.remove('hidden');
-                    allDetailsSection.classList.add('show-details'); // Add class for animation
-                    toggleDetailsBtn.textContent = 'Hide Details';
-
-                    // Track 'View_Product_Details' event when details are expanded
-                    EventTracker.track('View_Product_Details', {
-                        item: { // Send item details again for context of what details were viewed
-                            item_id: product.id,
-                            item_name: product.name,
-                            item_category: product.category,
-                            item_brand: product.brand || null,
-                            item_varient: product.variant || null
-                        },
-                        description_length: product.description ? product.description.length : 0 // Example additional param
-                    });
-                } else {
-                    allDetailsSection.classList.remove('show-details'); // Remove class for animation
-                    allDetailsSection.classList.add('hidden');
-                    toggleDetailsBtn.textContent = 'Show All Details';
-                }
-            });
-        }
-
-        function renderReviewSection(productId) {
-            const reviewSectionHtml = `
-                <div class="col-span-full mt-8 p-6 bg-gray-50 rounded-lg shadow-sm">
-                    <h3 class="text-2xl font-semibold text-gray-800 mb-4">Customer Reviews</h3>
-                    <div id="reviews-display-area" class="space-y-4 mb-6">
-                        <p class="text-gray-500">No reviews yet. Be the first to review!</p>
-                    </div>
-                    <button id="view-reviews-btn" class="btn-secondary px-4 py-2 text-sm mb-6">View All Reviews</button>
-
-                    <h4 class="text-xl font-semibold text-gray-800 mb-4">Submit Your Review</h4>
-                    <div class="flex items-center mb-4">
-                        <label for="review-rating" class="mr-2 text-gray-700">Rating:</label>
-                        <select id="review-rating" class="p-2 border border-gray-300 rounded-md">
-                            <option value="5">5 Stars</option>
-                            <option value="4">4 Stars</option>
-                            <option value="3">3 Stars</option>
-                            <option value="2">2 Stars</option>
-                            <option value="1">1 Star</option>
-                        </select>
-                    </div>
-                    <textarea id="review-text" class="w-full p-3 border border-gray-300 rounded-md mb-4" rows="4" placeholder="Write your review here..."></textarea>
-                    <button id="submit-review-btn" class="btn-primary w-full">Submit Review</button>
-                </div>
-            `;
-            const productDetailContainer = document.getElementById('product-detail-content');
-            productDetailContainer.insertAdjacentHTML('beforeend', reviewSectionHtml);
-
-            // Event listener for submitting a review
-            document.getElementById('submit-review-btn').addEventListener('click', () => {
-                const rating = document.getElementById('review-rating').value;
-                const reviewText = document.getElementById('review-text').value.trim();
-                submitReview(productId, rating, reviewText);
-            });
-
-            // Event listener for viewing all reviews
-            document.getElementById('view-reviews-btn').addEventListener('click', () => {
-                renderReviews(productId);
-            });
-        }
-
-
-        function submitReview(productId, rating, reviewText) {
-            if (reviewText === "") {
-                alertMessage("Please write your review before submitting.");
-                return;
-            }
-            console.log(`Submitting review for product ${productId}: Rating ${rating}, Review: "${reviewText}"`);
-            EventTracker.track('User_Reviews', {
-                review: { // Match the BigQuery RECORD type for 'review'
-                    product_id: productId,
-                    rating: parseInt(rating),
-                    review_text: reviewText,
-                }
-            });
-            alertMessage('Review submitted! (Demo)');
-            // Clear form
-            document.getElementById('review-rating').value = '5';
-            document.getElementById('review-text').value = '';
-            // Optionally re-render reviews
-            // renderReviews(productId);
-        }
-
-        function renderReviews(productId) {
-            // Mock reviews to determine count
-            const mockReviews = [
-                { user: 'Alice', rating: 5, text: 'Absolutely love this product! Highly recommend.', timestamp: '2025-07-20' },
-                { user: 'Bob', rating: 4, text: 'Good quality, met my expectations.', timestamp: '2025-07-22' }
-            ];
-
-            // UPDATED: NOW PASSING PRODUCT ID AND VIEWED REVIEWS COUNT CORRECTLY
-            console.log(`Fetching reviews for product ${productId}`);
-            EventTracker.track('View_User_Reviews', {
-                viewed_reviews_count: mockReviews.length, // Send viewed_reviews_count directly at top-level
-                item: { item_id: productId }, // Correctly send product_id nested under 'item'
-            });
-
-            const reviewsDisplayArea = document.getElementById('reviews-display-area');
-            reviewsDisplayArea.innerHTML = ''; // Clear previous reviews
-
-            if (mockReviews.length > 0) {
-                mockReviews.forEach(review => {
-                    const reviewDiv = document.createElement('div');
-                    reviewDiv.className = 'bg-white p-4 rounded-md shadow-sm border border-gray-200';
-                    reviewDiv.innerHTML = `
-                        <div class="flex items-center mb-2">
-                            <span class="font-semibold text-indigo-600 mr-2">${review.user}</span>
-                            <span class="text-yellow-500">{'⭐'.repeat(review.rating)}</span>
-                        </div>
-                        <p class="text-gray-700 text-sm mb-2">${review.text}</p>
-                        <p class="text-gray-500 text-xs text-right">Reviewed on ${review.timestamp}</p>
-                    `;
-                    reviewsDisplayArea.appendChild(reviewDiv);
-                });
-            } else {
-                reviewsDisplayArea.innerHTML = '<p class="text-gray-500">No reviews yet. Be the first to review!</p>';
-            }
-        }
-
-
-        function renderCategories() {
-            categoriesContainer.innerHTML = '';
-            const uniqueCategories = [...new Set(products.map(p => p.category))];
-
-            uniqueCategories.forEach(category => {
-                const button = document.createElement('a');
-                button.className = 'category-button text-center';
-                button.textContent = category;
-                button.href = `#category=${encodeURIComponent(category)}`;
-                categoriesContainer.appendChild(button);
-            });
-        }
-
-        function addToCart(productId) {
-            const existingItem = cartItems.find(item => item.productId === productId);
-            if (existingItem) {
-                existingItem.quantity++;
-            } else {
-                cartItems.push({ productId: productId, quantity: 1 });
-            }
-            updateCartCounts();
-            alertMessage('Product added to cart!');
-        }
-
-        function updateCartCounts() {
-            const totalItems = cartItems.reduce((sum, item) => sum + item.quantity, 0);
-            const counts = [cartCountMain, cartCountCategory, cartCountDetail];
-
-            counts.forEach(countEl => {
-                if (totalItems > 0) {
-                    countEl.textContent = totalItems;
-                    countEl.classList.remove('hidden');
-                } else {
-                    countEl.classList.add('hidden');
-                }
-            });
-        }
-
-        function renderCart() {
-            cartItemsContainer.innerHTML = '';
-            let total = 0;
-
-            if (cartItems.length === 0) {
-                emptyCartMessage.classList.remove('hidden');
-                cartSummary.classList.add('hidden');
-                return;
-            } else {
-                emptyCartMessage.classList.add('hidden');
-                cartSummary.classList.remove('hidden');
-            }
-
-            cartItems.forEach(item => {
-                const product = products.find(p => p.id === item.productId);
-                if (product) {
-                    const itemTotal = product.price * item.quantity;
-                    total += itemTotal;
-
-                    const cartItemDiv = document.createElement('div');
-                    cartItemDiv.className = 'flex items-center justify-between bg-gray-50 p-4 rounded-lg shadow-sm';
-                    cartItemDiv.innerHTML = `
-                        <div class="flex items-center">
-                            <img src="${product.image}" alt="${product.name}" class="w-16 h-16 object-cover rounded-md mr-4">
-                            <div>
-                                <h3 class="text-lg font-semibold text-gray-800">${product.name}</h3>
-                                <p class="text-gray-600">Quantity: ${item.quantity}</p>
-                            </div>
-                        </div>
-                        <div class="text-right">
-                            <p class="text-md font-bold text-indigo-600">$${itemTotal.toFixed(2)}</p>
-                            <button class="remove-from-cart-btn text-red-500 hover:text-red-700 text-sm mt-1" data-product-id="${product.id}">Remove</button>
-                        </div>
-                    `;
-                    cartItemsContainer.appendChild(cartItemDiv);
-                }
-            });
-
-            cartTotalSpan.textContent = total.toFixed(2);
-
-            cartItemsContainer.querySelectorAll('.remove-from-cart-btn').forEach(button => {
-                button.addEventListener('click', (event) => {
-                    const productId = event.target.dataset.productId;
-                    removeItemFromCart(productId);
-                });
-            });
-        }
-
-        function alertMessage(message) {
-            const messageBox = document.createElement('div');
-            messageBox.className = 'fixed bottom-5 right-5 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg z-50 transition-transform duration-300 transform translate-x-full';
-            messageBox.textContent = message;
-            document.body.appendChild(messageBox);
-
-            setTimeout(() => {
-                messageBox.classList.remove('translate-x-full');
-            }, 50);
-
-            setTimeout(() => {
-                messageBox.classList.add('translate-x-full');
-                messageBox.addEventListener('transitionend', () => messageBox.remove());
-            }, 3000);
-        }
-
-        function signOut() {
-            cartItems = [];
-            updateCartCounts();
-            EventTracker.clearUserId(); // Clear the user ID on sign out
-            showPage('login');
-            alertMessage('You have been signed out.');
-        }
-
-        function handleHashChange() {
-            const hash = window.location.hash.substring(1);
-
-            if (hash.startsWith('category=')) {
-                const category = decodeURIComponent(hash.split('=')[1]);
-                showPage('category', { category });
-            } else if (hash.startsWith('product=')) {
-                const productId = hash.split('=')[1];
-                showPage('product-detail', { productId });
-            } else if (hash === 'cart') {
-                showPage('cart');
-            } else {
-                // If no specific hash and not on login page, go to main.
-                // This ensures if you clear hash or navigate without one, you go to main,
-                // but not if you're explicitly on login.
-                if (currentPage !== 'login') {
-                    showPage('main');
-                }
-            }
-            // EventTracker.track('page_view'); // page_view already tracked in EventTracker.init() or once per page load.
-        }
-
-        // --- Event Listeners ---
-        loginBtn.addEventListener('click', () => {
-            const email = emailInput.value.trim();
-            const password = passwordInput.value.trim();
-
-            if (email && password) {
-                // --- IMPORTANT: Simulate successful login and get a user ID ---
-                // In a real app, you'd send email/password to your backend here.
-                // On successful response, you'd get the actual user_id from your backend.
-                // For this demo, we'll derive a user ID from the email (or a dummy value)
-                const simulatedBackendUserId = `user-${email.split('@')[0]}-${Date.now()}`;
-                
-                EventTracker.setUserId(simulatedBackendUserId); // Set the user ID for tracking
-                // --- End Simulation ---
-
-                loginError.classList.add('hidden');
-                showPage('main');
-            } else {
-                loginError.classList.remove('hidden');
-                loginError.textContent = 'Please enter both email and password.';
-            }
-        });
-
-        [cartIconMain, cartIconCategory, cartIconDetail].forEach(icon => {
-            icon.addEventListener('click', () => showPage('cart'));
-        });
-
-        backToMainBtnCategory.addEventListener('click', () => showPage('main'));
-        backToMainBtnCart.addEventListener('click', () => showPage('main'));
-        backFromDetailBtn.addEventListener('click', () => window.history.back());
-
-        checkoutBtn.addEventListener('click', () => {
-            if (cartItems.length > 0) {
-                alertMessage('Proceeding to checkout! (This is a demo)');
-                cartItems = [];
-                updateCartCounts();
-                renderCart();
-            } else {
-                alertMessage('Your cart is empty!');
-            }
-        });
-
-        if (signOutBtn) {
-            signOutBtn.addEventListener('click', signOut);
-        }
-
-        window.addEventListener('hashchange', handleHashChange);
-        window.addEventListener('popstate', handleHashChange); // Handles browser back/forward buttons
-
-        // --- Initial Page Load & Event Tracker Initialization ---
-        document.addEventListener('DOMContentLoaded', () => {
-            // Call EventTracker.init() when the DOM is ready.
-            // This will handle first_visit, session_start, and initial page_view.
-            EventTracker.init();
-
-            // Track view_promotion when promo banners are clicked
-            document.querySelectorAll('.promo-banner').forEach(banner => {
-                banner.addEventListener('click', () => {
-                    const promotionId = banner.alt; // Using alt text as ID
-                    const promotionName = banner.dataset.promotionName || null;
-                    const creativeSlot = banner.dataset.creativeSlot || null;
-
-                    EventTracker.track('view_promotion', {
-                        promotion: { // Match BigQuery RECORD type for 'promotion'
-                            promotion_id: promotionId,
-                            promotion_name: promotionName,
-                            creative_slot: creativeSlot
-                        }
-                    });
-                });
-            });
-
-            // Check hash for direct navigation (after EventTracker init)
-            if (window.location.hash) {
-                handleHashChange();
-            } else {
-                showPage('login'); // Default to login page if no hash
-            }
-
-            // --- Add manual test buttons and their event listeners ---
-            // These buttons are injected into the mainPage for easy access during testing.
-            const testButtonsHtml = `
-                <h2 class="text-2xl font-semibold text-gray-800 mb-6 mt-8">Manual Event Triggers (for Testing)</h2>
-                <div class="action-buttons p-4 bg-gray-100 rounded-lg shadow-inner mb-8">
-                    <button id="testProductDetailsView">Simulate View Product Details</button>
-                    <button id="testUserReviewSubmit">Simulate User Review (5 Stars)</button>
-                    <button id="testViewUserReviews">Simulate View User Reviews</button>
-                    <button id="testViewPromotion">Simulate View Promotion</button>
-                    </div>
-            `;
-            // Ensure mainPage exists before inserting HTML
-            if (mainPage) {
-                mainPage.insertAdjacentHTML('beforeend', testButtonsHtml);
-            }
-
-            // Wire up the dynamically added buttons
-            const testProductDetailsViewBtn = document.getElementById('testProductDetailsView');
-            if (testProductDetailsViewBtn) {
-                testProductDetailsViewBtn.addEventListener('click', () => {
-                    const dummyProduct = products[0];
-                    window.simulateProductDetailsView(dummyProduct.id, dummyProduct.name, dummyProduct.category, dummyProduct.price, dummyProduct.brand, dummyProduct.variant);
-                });
-            }
-
-            const testUserReviewSubmitBtn = document.getElementById('testUserReviewSubmit');
-            if (testUserReviewSubmitBtn) {
-                testUserReviewSubmitBtn.addEventListener('click', () => {
-                    const dummyProduct = products[1];
-                    window.simulateUserReviewSubmission(dummyProduct.id, 'This is a test review from the button for ' + dummyProduct.name + '!', 4);
-                });
-            }
-
-            const testViewUserReviewsBtn = document.getElementById('testViewUserReviews');
-            if (testViewUserReviewsBtn) {
-                testViewUserReviewsBtn.addEventListener('click', () => {
-                    const dummyProduct = products[2];
-                    window.simulateViewUserReviews(dummyProduct.id, Math.floor(Math.random() * 15) + 1); // Random count
-                });
-            }
-
-            const testViewPromotionBtn = document.getElementById('testViewPromotion');
-            if (testViewPromotionBtn) {
-                testViewPromotionBtn.addEventListener('click', () => {
-                    window.simulateViewPromotion('BTN_PROMO_MANUAL', 'Manual Button Promo', 'manual_test_slot');
-                });
-            }
-        });
-    </script>
+            // Books - 20 products
+            { id: 'b001', name: 'The Silent Patient', category: 'Books', price: 15.00, image: 'https://placehold.co/300x200/1A2A80/ffffff?text=Silent+Patient', description: 'A shocking psychological thriller with a brilliant twist.', brand: 'Celadon Books', variant: 'Hardcover' },
+            { id: 'b002', name: 'Atomic Habits', category: 'Books', price: 22.50, image: 'https://placehold.co/300x200/1A2A80/ffffff?text=Atomic+Habits', description: 'An easy & proven way to build good habits & break bad ones.', brand: 'Avery', variant: 'Paperback' },
+            { id: 'b003', name: 'Where the Crawdads Sing', category: 'Books', price: 16.00, image: 'https://placehold.co/300x200/1A2A80/ffffff?text=Crawl+Dads+Sing', description: 'A captivating mystery and coming-of-age story.', brand: 'G.P. Putnam\'s Sons', variant: 'Paperback' },
+            { id: 'b004', name: 'Dune', category: 'Books', price: 14.00, image: 'https://placehold.co/300x200/1A2A80/ffffff?text=Dune', description: 'The seminal science fiction epic of a desert planet and its messiah.', brand: 'Ace Books', variant: 'Paperback' },
+            { id: 'b005', name: 'The Midnight Library', category: 'Books', price: 17.50, image: 'https://placehold.co/300x200/1A2A80/ffffff?text=Midnight+Library', description: 'A heartwarming and philosophical tale about life choices.', brand: 'Viking', variant: 'Hardcover' },
+            { id: 'b006', name: 'Becoming', category: 'Books', price: 20.00, image: 'https://placehold.co/300x200/1A2A80/ffffff?text=Becoming', description: 'Michelle Obama\'s intimate, powerful, and inspiring memoir.', brand: 'Crown', variant: 'Hardcover' },
+            { id: 'b007', name: 'Educated', category: 'Books', price: 18.00, image: 'https://placehold.co/300x200/1A2A80/ffffff?text=Educated', description: 'A memoir of a young girl who pursued knowledge despite a tyrannical father.', brand: 'Random House', variant: 'Paperback' },
+            { id: 'b008', name: 'Sapiens: A Brief History of Humankind', category: 'Books', price: 25.00, image: 'https://placehold.co/300x200/1A2A80/ffffff?text=Sapiens', description: 'A sweeping history of Homo sapiens from the Stone Age to the present.', brand: 'Harper Perennial', variant: 'Paperback' },
+            { id: 'b009', name: 'The Great Gatsby', category: 'Books', price: 12.00, image: 'https://placehold.co/300x200/1A2A80/ffffff?text=Gatsby', description: 'A classic novel of the Jazz Age, love, and the American Dream.', brand: 'Scribner', variant: 'Paperback' },
+            { id: 'b010', name: 'The Alchemist', category: 'Books', price: 13.00, image: 'https://placehold.co/300x200/1A2A80/ffffff?text=Alchemist', description: 'An allegorical novel about a shepherd boy who journeys to find treasure.', brand: 'HarperOne', variant: 'Paperback' },
+            { id: 'b011', name: 'Fahrenheit 451', category: 'Books', price: 11.50, image: 'https://placehold.co/300x200/1A2A80/ffffff?text=Fahrenheit+451', description: 'A dystopian novel about a future society where books are outlawed.', brand: 'Simon & Schuster', variant: 'Paperback' },
+            { id: 'b012', name: '1984', category: 'Books', price: 10.00, image: 'https://placehold.co/300x200/1A2A80/ffffff?text=1984', description: 'A classic dystopian social science fiction novel by George Orwell.', brand: 'Signet Classic', variant: 'Paperback' },
+            { id: 'b013', name: 'To Kill a Mockingbird', category: 'Books', price: 14.00, image: 'https://placehold.co/300x200/1A2A80/ffffff?text=Mockingbird', description: 'A timeless novel about racial injustice and childhood in the American South.', brand: 'Grand Central Publishing', variant: 'Paperback' },
+            { id: 'b014', name: 'The Hobbit', category: 'Books', price: 16.00, image: 'https://placehold.co/300x200/1A2A80/ffffff?text=The+Hobbit', description: 'J.R.R. Tolkien\'s classic fantasy adventure novel.', brand: 'Ballantine Books', variant: 'Paperback' },
+            { id: 'b015', name: 'Pride and Prejudice', category: 'Books', price: 9.50, image: 'https://placehold.co/300x200/1A2A80/ffffff?text=Pride+Prejudice', description: 'Jane Austen\'s beloved novel of manners, love, and society.', brand: 'Penguin Classics', variant: 'Paperback' },
+            { id: 'b016', name: 'The Lord of the Rings', category: 'Books', price: 28.00, image: 'https://placehold.co/300x200/1A2A80/ffffff?text=Lord+of+Rings', description: 'The epic high-fantasy adventure by J.R.R. Tolkien.', brand: 'Houghton Mifflin Harcourt', variant: 'Box Set' },
+            { id: 'b017', name: 'Gone Girl', category: 'Books', price: 15.50, image: 'https://placehold.co/300x200/1A2A80/ffffff?text=Gone+Girl', description: 'A thrilling mystery that explores the dark side of marriage.', brand: 'Broadway Books', variant: 'Paperback' },
+            { id: 'b018', name: 'The Catcher in the Rye', category: 'Books', price: 10.50, image: 'https://placehold.co/300x200/1A2A80/ffffff?text=Catcher+Rye', description: 'J.D. Salinger\'s classic novel of adolescent angst and alienation.', brand: 'Little, Brown and Company', variant: 'Paperback' },
+            { id: 'b019', name: 'The Road', category: 'Books', price: 13.50, image: 'https://placehold.co/300x200/1A2A80/ffffff?text=The+Road', description: 'A post-apocalyptic novel about a father and son\'s journey.', brand: 'Vintage', variant: 'Paperback' },
+            { id: 'b020', name: 'Educated', category: 'Books', price: 18.00, image: 'https://placehold.co/300x200/1A2A80/ffffff?text=Educated', description: 'A powerful memoir about a young girl\'s quest for knowledge.', brand: 'Random House', variant: 'Hardcover' },
+
+            // Sports - 20 products
+            { id: 's001', name: 'Yoga Mat Premium', category: 'Sports', price: 25.00, image: 'https://placehold.co/300x200/1A2A80/ffffff?text=Yoga+Mat', description: 'Durable and comfortable yoga mat for all your fitness needs.', brand: 'ZenFlow', variant: '6mm-Blue' },
+            { id: 's002', name: 'Resistance Band Set', category: 'Sports', price: 18.00, image: 'https://placehold.co/300x200/1A2A80/ffffff?text=Resistance+Bands', description: 'Versatile resistance bands for full-body workouts.', brand: 'FitFlex', variant: 'Light-Heavy' },
+            { id: 's003', name: 'Smart Jump Rope', category: 'Sports', price: 35.00, image: 'https://placehold.co/300x200/1A2A80/ffffff?text=Smart+Jump+Rope', description: 'Track your jumps and calories with this smart jump rope.', brand: 'LeapMetric', variant: 'Digital' },
+            { id: 's004', name: 'Dumbbell Set Adjustable', category: 'Sports', price: 120.00, image: 'https://placehold.co/300x200/1A2A80/ffffff?text=Dumbbell+Set', description: 'Space-saving adjustable dumbbells for various weights.', brand: 'IronFit', variant: '5-50lbs' },
+            { id: 's005', name: 'Fitness Tracker Watch', category: 'Sports', price: 80.00, image: 'https://placehold.co/300x200/1A2A80/ffffff?text=Fitness+Tracker', description: 'Monitor heart rate, steps, and sleep with this advanced tracker.', brand: 'PacePro', variant: 'Black' },
+            { id: 's006', name: 'Cycling Helmet Aerodynamic', category: 'Sports', price: 60.00, image: 'https://placehold.co/300x200/1A2A80/ffffff?text=Cycling+Helmet', description: 'Lightweight and aerodynamic helmet for road cycling.', brand: 'AeroRide', variant: 'White-M' },
+            { id: 's007', name: 'Basketball Official Size', category: 'Sports', price: 30.00, image: 'https://placehold.co/300x200/1A2A80/ffffff?text=Basketball', description: 'Durable basketball for indoor and outdoor play.', brand: 'HoopStar', variant: 'Size 7' },
+            { id: 's008', name: 'Soccer Ball Training', category: 'Sports', price: 22.00, image: 'https://placehold.co/300x200/1A2A80/ffffff?text=Soccer+Ball', description: 'High-quality soccer ball for practice and casual games.', brand: 'KickMaster', variant: 'Size 5' },
+            { id: 's009', name: 'Tennis Racket Graphite', category: 'Sports', price: 90.00, image: 'https://placehold.co/300x200/1A2A80/ffffff?text=Tennis+Racket', description: 'Lightweight graphite racket for enhanced power and control.', brand: 'SmashPro', variant: 'Grip 2' },
+            { id: 's010', name: 'Swimming Goggles Anti-Fog', category: 'Sports', price: 15.00, image: 'https://placehold.co/300x200/1A2A80/ffffff?text=Swim+Goggles', description: 'Comfortable and anti-fog goggles for clear underwater vision.', brand: 'DiveClear', variant: 'Blue' },
+            { id: 's011', name: 'Camping Tent 2-Person', category: 'Sports', price: 150.00, image: 'https://placehold.co/300x200/1A2A80/ffffff?text=Camping+Tent', description: 'Lightweight and easy-to-pitch tent for outdoor adventures.', brand: 'TrailBlazer', variant: 'Green' },
+            { id: 's012', name: 'Hiking Backpack 40L', category: 'Sports', price: 70.00, image: 'https://placehold.co/300x200/1A2A80/ffffff?text=Hiking+Backpack', description: 'Comfortable and spacious backpack for day hikes and overnights.', brand: 'ExplorePack', variant: 'Red' },
+            { id: 's013', name: 'Fishing Rod Combo', category: 'Sports', price: 55.00, image: 'https://placehold.co/300x200/1A2A80/ffffff?text=Fishing+Rod', description: 'Complete fishing rod and reel combo for beginners and experts.', brand: 'Angler\'s Dream', variant: 'Spinning' },
+            { id: 's014', name: 'Golf Club Set Junior', category: 'Sports', price: 180.00, image: 'https://placehold.co/300x200/1A2A80/ffffff?text=Golf+Set+Junior', description: 'Perfect starter golf club set for aspiring young golfers.', brand: 'JuniorPro', variant: 'Ages 9-12' },
+            { id: 's015', name: 'Skateboard Complete', category: 'Sports', price: 65.00, image: 'https://placehold.co/300x200/1A2A80/ffffff?text=Skateboard', description: 'Ready-to-ride skateboard for cruising and tricks.', brand: 'StreetGlide', variant: 'Maple Deck' },
+            { id: 's016', name: 'Roller Skates Adjustable', category: 'Sports', price: 75.00, image: 'https://placehold.co/300x200/1A2A80/ffffff?text=Roller+Skates', description: 'Adjustable roller skates for growing feet or sharing.', brand: 'RollEasy', variant: 'Size 4-8' },
+            { id: 's017', name: 'Badminton Racket Set', category: 'Sports', price: 40.00, image: 'https://placehold.co/300x200/1A2A80/ffffff?text=Badminton+Set', description: 'Includes rackets, shuttlecocks, and carrying case for fun games.', brand: 'ShuttlePlay', variant: '2-Player' },
+            { id: 's018', name: 'Volleyball Soft Touch', category: 'Sports', price: 28.00, image: 'https://placehold.co/300x200/1A2A80/ffffff?text=Volleyball', description: 'Soft touch volleyball, ideal for casual play and training.', brand: 'CourtReady', variant: 'Indoor/Outdoor' },
+            { id: 's019', name: 'Baseball Glove Adult', category: 'Sports', price: 50.00, image: 'https://placehold.co/300x200/1A2A80/ffffff?text=Baseball+Glove', description: 'Durable leather baseball glove for adult players.', brand: 'DiamondGuard', variant: '12-inch' },
+            { id: 's020', name: 'Punching Bag Heavy Duty', category: 'Sports', price: 99.00, image: 'https://placehold.co/300x200/1A2A80/ffffff?text=Punching+Bag', description: 'Ideal for boxing, kickboxing, and general fitness training.', brand: 'PowerPunch', variant: '100lb' },
+        ];
+
+        // --- Global State & DOM Elements ---
+        let cartItems = [];
+        let currentPage = 'login';
+        const loginPage = document.getElementById('login-page');
+        const mainPage = document.getElementById('main-page');
+        const categoryPage = document.getElementById('category-page');
+        const cartPage = document.getElementById('cart-page');
+        const productDetailPage = document.getElementById('product-detail-page');
+        const emailInput = document.getElementById('email');
+        const passwordInput = document.getElementById('password');
+        const loginBtn = document.getElementById('login-btn');
+        const loginError = document.getElementById('login-error');
+        const cartIconMain = document.getElementById('cart-icon');
+        const cartCountMain = document.getElementById('cart-count');
+        const cartIconCategory = document.getElementById('cart-icon-category');
+        const cartCountCategory = document.getElementById('cart-count-category');
+        const cartIconDetail = document.getElementById('cart-icon-detail');
+        const cartCountDetail = document.getElementById('cart-count-detail');
+        const categoriesContainer = document.getElementById('categories-container');
+        const productList = document.getElementById('product-list');
+        const categoryTitle = document.getElementById('category-title');
+        const categoryProductList = document.getElementById('category-product-list');
+        const backToMainBtnCategory = document.getElementById('back-to-main-btn-category');
+        const backToMainBtnCart = document.getElementById('back-to-main-btn-cart');
+        const backFromDetailBtn = document.getElementById('back-from-detail-btn');
+        const productDetailContent = document.getElementById('product-detail-content');
+        const cartItemsContainer = document.getElementById('cart-items-container');
+        const cartTotalSpan = document.getElementById('cart-total');
+        const checkoutBtn = document.getElementById('checkout-btn');
+        const emptyCartMessage = document.getElementById('empty-cart-message');
+        const cartSummary = document.getElementById('cart-summary');
+        const signOutBtn = document.getElementById('sign-out-btn');
+
+
+        // --- Utility Functions ---
+
+        function hideAllPages() {
+            loginPage.classList.add('hidden');
+            mainPage.classList.add('hidden');
+            categoryPage.classList.add('hidden');
+            cartPage.classList.add('hidden');
+            productDetailPage.classList.add('hidden');
+        }
+
+        function showPage(pageName, options = {}) {
+            hideAllPages();
+            currentPage = pageName;
+
+            let newHash = '';
+            if (pageName === 'category' && options.category) {
+                newHash = `category=${encodeURIComponent(options.category)}`;
+            } else if (pageName === 'product-detail' && options.productId) {
+                newHash = `product=${options.productId}`;
+            } else if (pageName === 'cart') {
+                newHash = 'cart';
+            }
+
+            if (window.location.hash.substring(1) !== newHash) {
+                window.location.hash = newHash;
+            }
+
+            switch (pageName) {
+                case 'login':
+                    loginPage.classList.remove('hidden');
+                    emailInput.value = '';
+                    passwordInput.value = '';
+                    loginError.classList.add('hidden');
+                    break;
+                case 'main':
+                    mainPage.classList.remove('hidden');
+                    renderCategories();
+                    renderProducts(products, productList);
+                    updateCartCounts();
+                    // EventTracker.track('page_view'); // page_view already tracked in EventTracker.init()
+                    break;
+                case 'category':
+                    categoryPage.classList.remove('hidden');
+                    categoryTitle.textContent = options.category;
+                    const filteredProducts = products.filter(p => p.category === options.category);
+                    renderProducts(filteredProducts, categoryProductList);
+                    updateCartCounts();
+                    // EventTracker.track('page_view'); // page_view already tracked in EventTracker.init()
+                    break;
+                case 'cart':
+                    cartPage.classList.remove('hidden');
+                    renderCart();
+                    // EventTracker.track('page_view'); // page_view already tracked in EventTracker.init()
+                    break;
+                case 'product-detail':
+                    productDetailPage.classList.remove('hidden');
+                    renderProductDetail(options.productId);
+                    updateCartCounts();
+                    // EventTracker.track('page_view'); // page_view already tracked in EventTracker.init()
+                    break;
+                default:
+                    showPage('login');
+            }
+        }
+
+        function renderProducts(productsToRender, container) {
+            container.innerHTML = '';
+            if (productsToRender.length === 0) {
+                container.innerHTML = '<p class="text-gray-500 text-center col-span-full">No products found.</p>';
+                return;
+            }
+
+            productsToRender.forEach(product => {
+                const productCard = document.createElement('div');
+                productCard.className = 'product-card bg-white rounded-lg shadow-md p-4 flex flex-col';
+                productCard.innerHTML = `
+                    <a href="#product=${product.id}" class="flex flex-col flex-grow text-center">
+                        <img src="${product.image}" alt="${product.name}" class="w-full h-32 object-cover rounded-md mb-4">
+                        <h3 class="text-lg font-semibold text-gray-800 mb-2 flex-grow">${product.name}</h3>
+                        <p class="text-gray-600 mb-3">${product.category}</p>
+                        <p class="text-xl font-bold text-indigo-600 mb-4">$${product.price.toFixed(2)}</p>
+                    </a>
+                    <button class="add-to-cart-btn btn-primary w-full mt-auto" data-product-id="${product.id}">Add to Cart</button>
+                `;
+                container.appendChild(productCard);
+            });
+
+            container.querySelectorAll('.add-to-cart-btn').forEach(button => {
+                button.addEventListener('click', (event) => {
+                    event.stopPropagation();
+                    const productId = event.target.dataset.productId;
+                    addToCart(productId);
+                });
+            });
+        }
+
+        function renderProductDetail(productId) {
+            const product = products.find(p => p.id === productId);
+            if (!product) {
+                productDetailContent.innerHTML = '<p class="text-red-500">Product not found.</p>';
+                return;
+            }
+
+            // Track view_item event when product detail page is rendered
+            // Pass item details correctly nested under 'item'
+            EventTracker.track('view_item', { // Event name is 'view_item'
+                item: { // Match the BigQuery RECORD type for 'item'
+                    item_id: product.id,
+                    item_name: product.name,
+                    price: product.price, // BigQuery field is 'price', not 'item_price'
+                    item_category: product.category
+                }
+            });
+
+            // Populate product detail content
+            productDetailContent.innerHTML = `
+                <div class="product-image-container">
+                    <img src="${product.image}" alt="${product.name}" class="w-full h-auto object-cover rounded-lg shadow-md">
+                </div>
+                <div class="product-info flex flex-col">
+                    <h2 class="text-3xl font-bold text-gray-800 mb-2">${product.name}</h2>
+                    <p class="text-lg text-gray-600 mb-4">${product.category}</p>
+                    <p class="text-gray-700 text-base mb-6">${product.description}</p>
+                    <div class="mt-auto">
+                        <p class="text-3xl font-bold text-indigo-600 mb-6">$${product.price.toFixed(2)}</p>
+                        <button id="detail-add-to-cart-btn" class="btn-primary w-full" data-product-id="${product.id}">Add to Cart</button>
+                    </div>
+                </div>
+            `;
+
+            // Render review section for this product
+            renderReviewSection(productId);
+
+            document.getElementById('detail-add-to-cart-btn').addEventListener('click', (event) => {
+                const id = event.target.dataset.productId;
+                addToCart(id);
+            });
+
+            // --- "All Details" Section Logic ---
+            const toggleDetailsBtn = document.getElementById('toggle-details-btn');
+            const allDetailsSection = document.getElementById('all-details-section');
+
+            // Populate the details section
+            allDetailsSection.innerHTML = `
+                <h5>Product Specifications</h5>
+                <p><strong>Brand:</strong> ${product.brand || 'N/A'}</p>
+                <p><strong>Category:</strong> ${product.category || 'N/A'}</p>
+                <p><strong>Variant:</strong> ${product.variant || 'N/A'}</p>
+                <p><strong>Description:</strong> ${product.description || 'N/A'}</p>
+                <p><strong>Product ID:</strong> ${product.id}</p>
+            `;
+
+            // Ensure the section is hidden initially via JS
+            allDetailsSection.classList.add('hidden'); // Add 'hidden' class back if it was removed by previous CSS override
+            toggleDetailsBtn.textContent = 'Show All Details';
+
+
+            // Add event listener to toggle details visibility
+            toggleDetailsBtn.addEventListener('click', () => {
+                if (allDetailsSection.classList.contains('hidden')) {
+                    allDetailsSection.classList.remove('hidden');
+                    allDetailsSection.classList.add('show-details'); // Add class for animation
+                    toggleDetailsBtn.textContent = 'Hide Details';
+
+                    // Track 'View_Product_Details' event when details are expanded
+                    EventTracker.track('view_product_details', {
+                        item: { // Send item details again for context of what details were viewed
+                            item_id: product.id,
+                            item_name: product.name,
+                            item_category: product.category,
+                            price: product.price,
+                        },
+                    });
+                } else {
+                    allDetailsSection.classList.remove('show-details'); // Remove class for animation
+                    allDetailsSection.classList.add('hidden');
+                    toggleDetailsBtn.textContent = 'Show All Details';
+                }
+            });
+        }
+
+        function renderReviewSection(productId) {
+            const reviewSectionHtml = `
+                <div class="col-span-full mt-8 p-6 bg-gray-50 rounded-lg shadow-sm">
+                    <h3 class="text-2xl font-semibold text-gray-800 mb-4">Customer Reviews</h3>
+                    <div id="reviews-display-area" class="space-y-4 mb-6">
+                        <p class="text-gray-500">No reviews yet. Be the first to review!</p>
+                    </div>
+                    <button id="view-reviews-btn" class="btn-secondary px-4 py-2 text-sm mb-6">View All Reviews</button>
+
+                    <h4 class="text-xl font-semibold text-gray-800 mb-4">Submit Your Review</h4>
+                    <div class="flex items-center mb-4">
+                        <label for="review-rating" class="mr-2 text-gray-700">Rating:</label>
+                        <select id="review-rating" class="p-2 border border-gray-300 rounded-md">
+                            <option value="5">5 Stars</option>
+                            <option value="4">4 Stars</option>
+                            <option value="3">3 Stars</option>
+                            <option value="2">2 Stars</option>
+                            <option value="1">1 Star</option>
+                        </select>
+                    </div>
+                    <textarea id="review-text" class="w-full p-3 border border-gray-300 rounded-md mb-4" rows="4" placeholder="Write your review here..."></textarea>
+                    <button id="submit-review-btn" class="btn-primary w-full">Submit Review</button>
+                </div>
+            `;
+            const productDetailContainer = document.getElementById('product-detail-content');
+            productDetailContainer.insertAdjacentHTML('beforeend', reviewSectionHtml);
+
+            // Event listener for submitting a review
+            document.getElementById('submit-review-btn').addEventListener('click', () => {
+                const rating = document.getElementById('review-rating').value;
+                const reviewText = document.getElementById('review-text').value.trim();
+                submitReview(productId, rating, reviewText);
+            });
+
+            // Event listener for viewing all reviews
+            document.getElementById('view-reviews-btn').addEventListener('click', () => {
+                renderReviews(productId);
+            });
+        }
+
+
+        function submitReview(productId, rating, reviewText) {
+            if (reviewText === "") {
+                alertMessage("Please write your review before submitting.");
+                return;
+            }
+            const product = products.find(p => p.id === productId);
+            if (!product) {
+                console.error('Product not found for review submission.');
+                return;
+            }
+
+            console.log(`Submitting review for product ${productId}: Rating ${rating}, Review: "${reviewText}"`);
+            
+            // Generate a unique review_id
+            const reviewId = 'review-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
+
+            // UPDATED: Pass the product details in the 'item' record, and the review with review_id
+            EventTracker.track('user_reviews', {
+                item: { 
+                    item_id: product.id,
+                    item_name: product.name,
+                    item_category: product.category,
+                    price: product.price,
+                },
+                review: { 
+                    review_id: reviewId, // New field
+                    product_id: productId,
+                    rating: parseInt(rating),
+                    review_text: reviewText,
+                },
+                viewed_reviews_count: 0 // Assuming no reviews are visible when a user submits a new one
+            });
+            
+            alertMessage('Review submitted! (Demo)');
+            // Clear form
+            document.getElementById('review-rating').value = '5';
+            document.getElementById('review-text').value = '';
+        }
+
+        function renderReviews(productId) {
+            // Mock reviews to determine count
+            const mockReviews = [
+                { user: 'Alice', rating: 5, text: 'Absolutely love this product! Highly recommend.', timestamp: '2025-07-20' },
+                { user: 'Bob', rating: 4, text: 'Good quality, met my expectations.', timestamp: '2025-07-22' }
+            ];
+
+            const product = products.find(p => p.id === productId);
+            if (!product) {
+                console.error('Product not found for review tracking.');
+                return;
+            }
+
+            // UPDATED: NOW PASSING PRODUCT ID AND VIEWED REVIEWS COUNT CORRECTLY
+            console.log(`Fetching reviews for product ${productId}`);
+            EventTracker.track('view_user_reviews', {
+                viewed_reviews_count: mockReviews.length, // Send viewed_reviews_count directly at top-level
+                item: { item_id: product.id }, // Correctly send product_id nested under 'item'
+            });
+
+            const reviewsDisplayArea = document.getElementById('reviews-display-area');
+            reviewsDisplayArea.innerHTML = ''; // Clear previous reviews
+
+            if (mockReviews.length > 0) {
+                mockReviews.forEach(review => {
+                    const reviewDiv = document.createElement('div');
+                    reviewDiv.className = 'bg-white p-4 rounded-md shadow-sm border border-gray-200';
+                    reviewDiv.innerHTML = `
+                        <div class="flex items-center mb-2">
+                            <span class="font-semibold text-indigo-600 mr-2">${review.user}</span>
+                            <span class="text-yellow-500">{'⭐'.repeat(review.rating)}</span>
+                        </div>
+                        <p class="text-gray-700 text-sm mb-2">${review.text}</p>
+                        <p class="text-gray-500 text-xs text-right">Reviewed on ${review.timestamp}</p>
+                    `;
+                    reviewsDisplayArea.appendChild(reviewDiv);
+                });
+            } else {
+                reviewsDisplayArea.innerHTML = '<p class="text-gray-500">No reviews yet. Be the first to review!</p>';
+            }
+        }
+
+
+        function renderCategories() {
+            categoriesContainer.innerHTML = '';
+            const uniqueCategories = [...new Set(products.map(p => p.category))];
+
+            uniqueCategories.forEach(category => {
+                const button = document.createElement('a');
+                button.className = 'category-button text-center';
+                button.textContent = category;
+                button.href = `#category=${encodeURIComponent(category)}`;
+                categoriesContainer.appendChild(button);
+            });
+        }
+
+        function addToCart(productId) {
+            const existingItem = cartItems.find(item => item.productId === productId);
+            if (existingItem) {
+                existingItem.quantity++;
+            } else {
+                cartItems.push({ productId: productId, quantity: 1 });
+            }
+            updateCartCounts();
+            alertMessage('Product added to cart!');
+        }
+
+        function updateCartCounts() {
+            const totalItems = cartItems.reduce((sum, item) => sum + item.quantity, 0);
+            const counts = [cartCountMain, cartCountCategory, cartCountDetail];
+
+            counts.forEach(countEl => {
+                if (totalItems > 0) {
+                    countEl.textContent = totalItems;
+                    countEl.classList.remove('hidden');
+                } else {
+                    countEl.classList.add('hidden');
+                }
+            });
+        }
+
+        function renderCart() {
+            cartItemsContainer.innerHTML = '';
+            let total = 0;
+
+            if (cartItems.length === 0) {
+                emptyCartMessage.classList.remove('hidden');
+                cartSummary.classList.add('hidden');
+                return;
+            } else {
+                emptyCartMessage.classList.add('hidden');
+                cartSummary.classList.remove('hidden');
+            }
+
+            cartItems.forEach(item => {
+                const product = products.find(p => p.id === item.productId);
+                if (product) {
+                    const itemTotal = product.price * item.quantity;
+                    total += itemTotal;
+
+                    const cartItemDiv = document.createElement('div');
+                    cartItemDiv.className = 'flex items-center justify-between bg-gray-50 p-4 rounded-lg shadow-sm';
+                    cartItemDiv.innerHTML = `
+                        <div class="flex items-center">
+                            <img src="${product.image}" alt="${product.name}" class="w-16 h-16 object-cover rounded-md mr-4">
+                            <div>
+                                <h3 class="text-lg font-semibold text-gray-800">${product.name}</h3>
+                                <p class="text-gray-600">Quantity: ${item.quantity}</p>
+                            </div>
+                        </div>
+                        <div class="text-right">
+                            <p class="text-md font-bold text-indigo-600">$${itemTotal.toFixed(2)}</p>
+                            <button class="remove-from-cart-btn text-red-500 hover:text-red-700 text-sm mt-1" data-product-id="${product.id}">Remove</button>
+                        </div>
+                    `;
+                    cartItemsContainer.appendChild(cartItemDiv);
+                }
+            });
+
+            cartTotalSpan.textContent = total.toFixed(2);
+
+            cartItemsContainer.querySelectorAll('.remove-from-cart-btn').forEach(button => {
+                button.addEventListener('click', (event) => {
+                    const productId = event.target.dataset.productId;
+                    removeItemFromCart(productId);
+                });
+            });
+        }
+
+        function alertMessage(message) {
+            const messageBox = document.createElement('div');
+            messageBox.className = 'fixed bottom-5 right-5 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg z-50 transition-transform duration-300 transform translate-x-full';
+            messageBox.textContent = message;
+            document.body.appendChild(messageBox);
+
+            setTimeout(() => {
+                messageBox.classList.remove('translate-x-full');
+            }, 50);
+
+            setTimeout(() => {
+                messageBox.classList.add('translate-x-full');
+                messageBox.addEventListener('transitionend', () => messageBox.remove());
+            }, 3000);
+        }
+
+        function removeItemFromCart(productId) {
+            cartItems = cartItems.filter(item => {
+                if (item.productId === productId) {
+                    // Track remove_from_cart event when an item is actually removed or quantity reduced to 0
+                    const product = products.find(p => p.id === productId);
+                    if (product) {
+                        EventTracker.track('remove_from_cart', {
+                            item: {
+                                item_id: product.id,
+                                item_name: product.name,
+                                item_category: product.category,
+                                price: product.price,
+                                quantity: item.quantity // Quantity being removed
+                            }
+                        });
+                    }
+                    return false; // Remove the item
+                }
+                return true;
+            });
+            updateCartCounts();
+            renderCart();
+            alertMessage('Item removed from cart.');
+        }
+
+
+        function signOut() {
+            EventTracker._endCurrentSessionInternal(); // Trigger Session_Time event on explicit sign out
+
+            cartItems = [];
+            updateCartCounts();
+            EventTracker.clearUserId(); // Clear the user ID on sign out
+            showPage('login');
+            alertMessage('You have been signed out.');
+        }
+
+        function handleHashChange() {
+            const hash = window.location.hash.substring(1);
+
+            if (hash.startsWith('category=')) {
+                const category = decodeURIComponent(hash.split('=')[1]);
+                showPage('category', { category });
+            } else if (hash.startsWith('product=')) {
+                const productId = hash.split('=')[1];
+                showPage('product-detail', { productId });
+            } else if (hash === 'cart') {
+                showPage('cart');
+            } else {
+                // If no specific hash and not on login page, go to main.
+                // This ensures if you clear hash or navigate without one, you go to main,
+                // but not if you're explicitly on login.
+                if (currentPage !== 'login') {
+                    showPage('main');
+                }
+            }
+            // EventTracker.track('page_view'); // page_view already tracked in EventTracker.init() or once per page load.
+        }
+
+        // --- Event Listeners ---
+        loginBtn.addEventListener('click', () => {
+            const email = emailInput.value.trim();
+            const password = passwordInput.value.trim();
+
+            if (email && password) {
+                // --- IMPORTANT: Simulate successful login and get a user ID ---
+                // In a real app, you'd send email/password to your backend here.
+                // On successful response, you'd get the actual user_id from your backend.
+                // For this demo, we'll derive a user ID from the email (or a dummy value)
+                const simulatedBackendUserId = `user-${email.split('@')[0]}-${Date.now()}`;
+                
+                EventTracker.setUserId(simulatedBackendUserId); // Set the user ID for tracking
+                // Simulate starting a new session on login (as login effectively starts a new user journey)
+                EventTracker.init(); // This will handle session_start and first_visit based on logic within init
+                // --- End Simulation ---
+
+                loginError.classList.add('hidden');
+                showPage('main');
+            } else {
+                loginError.classList.remove('hidden');
+                loginError.textContent = 'Please enter both email and password.';
+            }
+        });
+
+        [cartIconMain, cartIconCategory, cartIconDetail].forEach(icon => {
+            icon.addEventListener('click', () => showPage('cart'));
+        });
+
+        backToMainBtnCategory.addEventListener('click', () => showPage('main'));
+        backToMainBtnCart.addEventListener('click', () => showPage('main'));
+        backFromDetailBtn.addEventListener('click', () => window.history.back());
+
+        checkoutBtn.addEventListener('click', () => {
+            if (cartItems.length > 0) {
+                alertMessage('Proceeding to checkout! (This is a demo)');
+                cartItems = [];
+                updateCartCounts();
+                renderCart();
+            } else {
+                alertMessage('Your cart is empty!');
+            }
+        });
+
+        if (signOutBtn) {
+            signOutBtn.addEventListener('click', signOut);
+        }
+
+        window.addEventListener('hashchange', handleHashChange);
+        window.addEventListener('popstate', handleHashChange); // Handles browser back/forward buttons
+
+        // --- Initial Page Load & Event Tracker Initialization ---
+        document.addEventListener('DOMContentLoaded', () => {
+            // Call EventTracker.init() when the DOM is ready.
+            // This will handle first_visit, session_start, and initial page_view.
+            // Note: For login page, init will run with an anonymous user ID.
+            // When user logs in, setUserId is called, which might re-trigger first_visit for that specific logged-in user.
+            EventTracker.init();
+
+            // Track view_promotion when promo banners are clicked
+            document.querySelectorAll('.promo-banner').forEach(banner => {
+                banner.addEventListener('click', () => {
+                    const promotionId = banner.alt; // Using alt text as ID
+                    const promotionName = banner.dataset.promotionName || null;
+                    const creativeSlot = banner.dataset.creativeSlot || null;
+
+                    EventTracker.track('view_promotion', {
+                        promotion: { // Match BigQuery RECORD type for 'promotion'
+                            promotion_id: promotionId,
+                            promotion_name: promotionName,
+                            creative_slot: creativeSlot // This will be mapped to creative_name in the track function
+                        }
+                    });
+                });
+            });
+
+            // Check hash for direct navigation (after EventTracker init)
+            if (window.location.hash) {
+                handleHashChange();
+            } else {
+                // Determine initial page based on whether a user is "logged in" from previous session
+                const storedUserId = sessionStorage.getItem('user_id');
+                if (storedUserId && !storedUserId.startsWith('anon-')) { // Assume if not 'anon-', then it was a logged-in user
+                    showPage('main');
+                } else {
+                    showPage('login'); // Default to login page if no hash or anonymous user
+                }
+            }
+
+            // --- Add manual test buttons and their event listeners ---
+            // These buttons are injected into the mainPage for easy access during testing.
+            const testButtonsHtml = `
+                <h2 class="text-2xl font-semibold text-gray-800 mb-6 mt-8">Manual Event Triggers (for Testing)</h2>
+                <div class="action-buttons p-4 bg-gray-100 rounded-lg shadow-inner mb-8">
+                    <button id="testProductDetailsView" class="btn-secondary mr-2 mb-2">Simulate View Product Details</button>
+                    <button id="testUserReviewSubmit" class="btn-secondary mr-2 mb-2">Simulate User Review (5 Stars)</button>
+                    <button id="testViewUserReviews" class="btn-secondary mr-2 mb-2">Simulate View User Reviews</button>
+                    <button id="testViewPromotion" class="btn-secondary mb-2">Simulate View Promotion</button>
+                </div>
+            `;
+            // Ensure mainPage exists before inserting HTML
+            if (mainPage) {
+                mainPage.insertAdjacentHTML('beforeend', testButtonsHtml);
+            }
+
+            // Wire up the dynamically added buttons
+            // Define global functions for manual triggers to be accessible from console/buttons
+            window.simulateProductDetailsView = (productId, productName, productCategory, productPrice, productBrand, productVariant) => {
+                EventTracker.track('view_product_details', {
+                    item: {
+                        item_id: productId,
+                        item_name: productName,
+                        item_category: productCategory,
+                        price: productPrice,
+                    }
+                });
+                alertMessage(`'View_Product_Details' event sent for ${productName}.`);
+            };
+
+            window.simulateUserReviewSubmission = (productId, reviewText, rating) => {
+                const dummyProduct = products.find(p => p.id === productId);
+                const reviewId = 'review-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
+                EventTracker.track('user_reviews', {
+                    item: {
+                        item_id: dummyProduct.id,
+                        item_name: dummyProduct.name,
+                        item_category: dummyProduct.category,
+                        price: dummyProduct.price,
+                    },
+                    review: {
+                        review_id: reviewId,
+                        product_id: productId,
+                        rating: rating,
+                        review_text: reviewText
+                    },
+                    viewed_reviews_count: 0
+                });
+                alertMessage(`'user_reviews' event sent for product ${productId}.`);
+            };
+
+            window.simulateViewUserReviews = (productId, count) => {
+                EventTracker.track('view_user_reviews', {
+                    viewed_reviews_count: count,
+                    item: { item_id: productId }
+                });
+                alertMessage(`'View_User_Reviews' event sent for product ${productId} with ${count} reviews.`);
+            };
+
+            window.simulateViewPromotion = (promotionId, promotionName, creativeSlot) => {
+                EventTracker.track('view_promotion', {
+                    promotion: {
+                        promotion_id: promotionId,
+                        promotion_name: promotionName,
+                        creative_slot: creativeSlot
+                    }
+                });
+                alertMessage(`'view_promotion' event sent for ${promotionName}.`);
+            };
+
+
+            const testProductDetailsViewBtn = document.getElementById('testProductDetailsView');
+            if (testProductDetailsViewBtn) {
+                testProductDetailsViewBtn.addEventListener('click', () => {
+                    const dummyProduct = products[0];
+                    window.simulateProductDetailsView(dummyProduct.id, dummyProduct.name, dummyProduct.category, dummyProduct.price, dummyProduct.brand, dummyProduct.variant);
+                });
+            }
+
+            const testUserReviewSubmitBtn = document.getElementById('testUserReviewSubmit');
+            if (testUserReviewSubmitBtn) {
+                testUserReviewSubmitBtn.addEventListener('click', () => {
+                    const dummyProduct = products[1];
+                    window.simulateUserReviewSubmission(dummyProduct.id, 'This is a test review from the button for ' + dummyProduct.name + '!', 4);
+                });
+            }
+
+            const testViewUserReviewsBtn = document.getElementById('testViewUserReviews');
+            if (testViewUserReviewsBtn) {
+                testViewUserReviewsBtn.addEventListener('click', () => {
+                    const dummyProduct = products[2];
+                    window.simulateViewUserReviews(dummyProduct.id, Math.floor(Math.random() * 15) + 1); // Random count
+                });
+            }
+
+            const testViewPromotionBtn = document.getElementById('testViewPromotion');
+            if (testViewPromotionBtn) {
+                testViewPromotionBtn.addEventListener('click', () => {
+                    window.simulateViewPromotion('BTN_PROMO_MANUAL', 'Manual Button Promo', 'manual_test_slot');
+                });
+            }
+        });
+    </script>
 </body>
 </html>
