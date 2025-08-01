@@ -373,18 +373,20 @@
 
             // --- CONFIGURATION ---
             const cloudFunctionUrls = {
-                first_visit: 'https://asia-south1-svaraflow.cloudfunctions.net/process_first_visit',//'http://127.0.0.1:8081',
-                session_start: 'https://asia-south1-svaraflow.cloudfunctions.net/process_session_start',//'http://127.0.0.1:8089',
-                view_item: 'https://asia-south1-svaraflow.cloudfunctions.net/view-item-tracker',//'http://127.0.0.1:8083',
-                view_promotion: 'https://asia-south1-svaraflow.cloudfunctions.net/process-view-promotion',//'http://127.0.0.1:8084',
-                click: 'https://asia-south1-svaraflow.cloudfunctions.net/track_ecommerce_event',//'http://127.0.0.1:8080',
-                scroll: 'https://asia-south1-svaraflow.cloudfunctions.net/process_scroll_event',//'http://127.0.0.1:8088',
-                page_view: 'https://asia-south1-svaraflow.cloudfunctions.net/page_view_tracker',//'http://127.0.0.1:8082',
-                Zooming: 'https://asia-south1-svaraflow.cloudfunctions.net/process-zooming',//'http://127.0.0.1:8085',
-                User_Reviews: 'https://asia-south1-svaraflow.cloudfunctions.net/process-user-reviews',//'http://127.0.0.1:8086',
-                View_User_Reviews: 'https://asia-south1-svaraflow.cloudfunctions.net/process-view-user-reviews',//'http://127.0.0.1:8087',
-                View_Product_Details: 'https://asia-south1-svaraflow.cloudfunctions.net/process-view-product-details',//'http://127.0.0.1:8090',
-                Session_Time: 'https://asia-south1-svaraflow.cloudfunctions.net/process_session_time', // Your Cloud Function for Session_Time
+
+                first_visit: 'http://127.0.0.1:8081',
+                session_start:'http://127.0.0.1:8089',
+                view_item: 'http://127.0.0.1:8083',
+                view_promotion: 'http://127.0.0.1:8084',
+                click: 'http://127.0.0.1:8080',
+                scroll: 'http://127.0.0.1:8088',
+                view_page: 'http://127.0.0.1:8082',
+                zooming: 'http://127.0.0.1:8085',
+                user_reviews:'http://127.0.0.1:8086',
+                view_user_reviews:'http://127.0.0.1:8087',
+                view_product_details: 'http://127.0.0.1:8090',
+                session_time: 'http://127.0.0.1:8091'
+
             };
 
             let currentUserId = null; // Internal tracker for the current user ID
@@ -395,8 +397,8 @@
                     return currentUserId;
                 }
 
-                // Check localStorage for a previously set ID (e.g., from a prior login session)
-                let userId = localStorage.getItem('user_id');
+                // Check sessionStorage for a previously set ID (e.g., from a prior login session)
+                let userId = sessionStorage.getItem('user_id');
                 if (userId) {
                     currentUserId = userId; // Store it internally for quicker access
                     return userId;
@@ -405,7 +407,7 @@
                 // If no ID found (first time or after logout/clear), generate an anonymous one
                 // This acts as a fallback for unauthenticated users
                 userId = 'anon-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
-                localStorage.setItem('user_id', userId); // Store anonymous ID
+                sessionStorage.setItem('user_id', userId); // Store anonymous ID
                 currentUserId = userId;
                 return userId;
             };
@@ -415,18 +417,18 @@
                 if (typeof newUserId === 'string' && newUserId.trim() !== '') {
                     const oldUserId = currentUserId; // Store old ID for first_visit check
                     currentUserId = newUserId;
-                    localStorage.setItem('user_id', newUserId); // Persist the new user ID
+                    sessionStorage.setItem('user_id', newUserId); // Persist the new user ID
 
                     // If the user ID has changed (new login for an existing session)
                     // or if it's the very first time setting a logged-in ID,
                     // we should re-evaluate first_visit.
                     if (oldUserId !== newUserId) {
                         const firstVisitKey = `first_visit_tracked_for_${newUserId}`;
-                        if (!localStorage.getItem(firstVisitKey)) {
+                        if (!sessionStorage.getItem(firstVisitKey)) {
                             // This is the first time we've seen this *specific logged-in user ID*
                             // for analytics. Fire first_visit for them.
                             track('first_visit');
-                            localStorage.setItem(firstVisitKey, 'true');
+                            sessionStorage.setItem(firstVisitKey, 'true');
                         }
                     }
                 } else {
@@ -437,23 +439,23 @@
             // Function to clear user ID on logout
             const clearUserId = () => {
                 currentUserId = null;
-                localStorage.removeItem('user_id');
+                sessionStorage.removeItem('user_id');
                 // Clear all first_visit flags to allow new first_visits for new logins on this browser
-                for (let i = 0; i < localStorage.length; i++) {
-                    const key = localStorage.key(i);
+                for (let i = 0; i < sessionStorage.length; i++) {
+                    const key = sessionStorage.key(i);
                     if (key.startsWith('first_visit_tracked_for_')) {
-                        localStorage.removeItem(key);
+                        sessionStorage.removeItem(key);
                     }
                 }
             };
 
 
             const getOrCreateSessionId = () => {
-                // Modified: Now session ID is user-centric and persistent in localStorage
-                let sessionId = localStorage.getItem(`session_id_${currentUserId}`);
+                // Modified: Now session ID is user-centric and persistent in sessionStorage
+                let sessionId = sessionStorage.getItem(`session_id_${currentUserId}`);
                 if (!sessionId) {
                     sessionId = 'session-' + currentUserId + '-' + Date.now() + '-' + Math.random().toString(36).substr(2, 5);
-                    localStorage.setItem(`session_id_${currentUserId}`, sessionId);
+                    sessionStorage.setItem(`session_id_${currentUserId}`, sessionId);
                 }
                 return sessionId;
             };
@@ -470,9 +472,8 @@
 
                 return {
                     category: category,
-                    operating_system: navigator.platform,
-                    browser: getBrowserName(userAgent),
-                    screen_resolution: `${window.screen.width}x${window.screen.height}`
+                    os: navigator.platform,
+                    browser: getBrowserName(userAgent)
                 };
             };
 
@@ -548,18 +549,58 @@
                     traffic_source: getTrafficSource(),
                 };
 
-                const data = {
-                    ...commonPayload,
-                    ...specificPayload // Merge event-specific parameters (including nested records)
-                };
+                // The schemas have slightly different field names for nested objects
+                // We need to map them correctly before sending
+                const finalPayload = { ...commonPayload };
 
-                const payload = JSON.stringify(data);
+                if (specificPayload.item) {
+                    finalPayload.item = specificPayload.item;
+                }
+
+                if (specificPayload.promotion) {
+                    // The schema for `view_promotion` uses the 'promotion' record.
+                    // The schema has `promotion_id`, `promotion_name`, and `creative_name`.
+                    // We need to rename `creative_slot` to `creative_name`.
+                    finalPayload.promotion = {
+                        promotion_id: specificPayload.promotion.promotion_id,
+                        promotion_name: specificPayload.promotion.promotion_name,
+                        creative_name: specificPayload.promotion.creative_slot // Renaming here
+                    };
+                }
+
+                // --- UPDATED: Handle `user_reviews` schema fields correctly ---
+                if (eventName === 'user_reviews') {
+                    finalPayload.item = specificPayload.item;
+                    finalPayload.review = specificPayload.review;
+                    finalPayload.viewed_reviews_count = specificPayload.viewed_reviews_count;
+                }
+                // --- END UPDATED SECTION ---
+
+                if (specificPayload.scroll_depth_percentage) {
+                    finalPayload.scroll_depth_percentage = specificPayload.scroll_depth_percentage;
+                }
+
+                if (specificPayload.zoom_level) {
+                    finalPayload.zoom_level = specificPayload.zoom_level;
+                }
+
+                if (specificPayload.viewed_reviews_count && eventName === 'view_user_reviews') {
+                    finalPayload.viewed_reviews_count = specificPayload.viewed_reviews_count;
+                    finalPayload.item = specificPayload.item;
+                }
+
+                if (specificPayload.session_duration) {
+                    finalPayload.session_duration = specificPayload.session_duration;
+                }
+
+
+                const payload = JSON.stringify(finalPayload);
 
                 // --- Debugging additions ---
                 console.log(`[EventTracker] Preparing to send event: ${eventName}`);
                 console.log(`[EventTracker] Target URL: ${url}`);
                 console.log(`[EventTracker] Payload (JSON string):`, payload);
-                console.log(`[EventTracker] Payload (Parsed Object):`, data);
+                console.log(`[EventTracker] Payload (Parsed Object):`, finalPayload);
                 // --- End Debugging additions ---
 
                 fetch(url, {
@@ -596,28 +637,30 @@
             const resetInactivityTimer = () => {
                 clearTimeout(inactivityTimer);
                 lastActivityTime = Date.now();
-                localStorage.setItem(`session_last_activity_${currentUserId}`, lastActivityTime); // Persist last activity
+
+                sessionStorage.setItem(`session_last_activity_${currentUserId}`, lastActivityTime); // Persist last activity
+
                 inactivityTimer = setTimeout(endCurrentSession, SESSION_TIMEOUT_MS);
             };
 
             const endCurrentSession = () => {
                 console.log("[EventTracker] endCurrentSession called!"); // ADDED FOR DEBUGGING
-                if (!currentUserId || !localStorage.getItem(`session_id_${currentUserId}`)) {
+                if (!currentUserId || !sessionStorage.getItem(`session_id_${currentUserId}`)) {
                     console.log("[EventTracker] No active session for this user to end, returning."); // ADDED FOR DEBUGGING
                     return; // No active session for this user to end
                 }
 
-                const currentSessionId = localStorage.getItem(`session_id_${currentUserId}`);
-                const sessionStartTimeMs = parseInt(localStorage.getItem(`session_start_time_${currentUserId}`) || Date.now());
+                const currentSessionId = sessionStorage.getItem(`session_id_${currentUserId}`);
+                const sessionStartTimeMs = parseInt(sessionStorage.getItem(`session_start_time_${currentUserId}`) || Date.now());
                 const sessionDurationSeconds = Math.round((Date.now() - sessionStartTimeMs) / 1000);
 
                 // Fire Session_Time event with the duration
-                track('Session_Time', { session_duration: sessionDurationSeconds });
+                track('session_time', { session_duration: sessionDurationSeconds });
 
                 // Clear session-specific storage for this user
-                localStorage.removeItem(`session_id_${currentUserId}`);
-                localStorage.removeItem(`session_start_time_${currentUserId}`);
-                localStorage.removeItem(`session_last_activity_${currentUserId}`);
+                sessionStorage.removeItem(`session_id_${currentUserId}`);
+                sessionStorage.removeItem(`session_start_time_${currentUserId}`);
+                sessionStorage.removeItem(`session_last_activity_${currentUserId}`);
 
                 console.log(`[EventTracker] Session ended for user ${currentUserId} (Session ID: ${currentSessionId}, Duration: ${sessionDurationSeconds}s).`);
             };
@@ -628,8 +671,8 @@
                 // or logout handles previous session ending.
                 // Generate a new session ID for the current user
                 const newSessionId = 'session-' + currentUserId + '-' + Date.now() + '-' + Math.random().toString(36).substr(2, 5);
-                localStorage.setItem(`session_id_${currentUserId}`, newSessionId);
-                localStorage.setItem(`session_start_time_${currentUserId}`, Date.now()); // Store session start time
+                sessionStorage.setItem(`session_id_${currentUserId}`, newSessionId);
+                sessionStorage.setItem(`session_start_time_${currentUserId}`, Date.now()); // Store session start time
                 
                 track('session_start'); // Fire the session_start event
                 resetInactivityTimer(); // Start timer for new session
@@ -639,11 +682,11 @@
 
             // --- INITIALIZATION & AUTOMATIC EVENTS ---
             const init = () => {
-                // Ensure currentUserId is populated first (either from localStorage or as anon)
+                // Ensure currentUserId is populated first (either from sessionStorage or as anon)
                 getOrCreateUserId();
 
                 // Check if an existing session is still valid
-                const lastActivity = parseInt(localStorage.getItem(`session_last_activity_${currentUserId}`) || 0);
+                const lastActivity = parseInt(sessionStorage.getItem(`session_last_activity_${currentUserId}`) || 0);
                 const now = Date.now();
 
                 if (now - lastActivity > SESSION_TIMEOUT_MS) {
@@ -658,15 +701,15 @@
                 
                 // --- CORRECTED FIRST_VISIT LOGIC: Per User ID ---
                 const firstVisitKey = `first_visit_tracked_for_${currentUserId}`; // Key unique to this user ID
-                if (!localStorage.getItem(firstVisitKey)) {
+                if (!sessionStorage.getItem(firstVisitKey)) {
                     track('first_visit');
-                    localStorage.setItem(firstVisitKey, 'true'); // Mark as tracked for *this specific user*
+                    sessionStorage.setItem(firstVisitKey, 'true'); // Mark as tracked for *this specific user*
                 }
                 // --- END CORRECTED FIRST_VISIT LOGIC ---
 
 
                 // Track initial page view when the tracker initializes
-                track('page_view');
+                track('view_page');
 
                 // Universal activity listeners to keep session alive
                 ['mousemove', 'mousedown', 'keydown', 'scroll', 'touchstart'].forEach(event => {
@@ -706,7 +749,7 @@
                     if (e.ctrlKey || e.metaKey) { // Check for Ctrl (Windows/Linux) or Cmd (macOS) key
                         e.preventDefault(); // Prevent browser zoom
                         const zoomDelta = e.deltaY; // Amount of scroll
-                        track('Zooming', { zoom_level: zoomDelta });
+                        track('zooming', { zoom_level: zoomDelta });
                     }
                 }, { passive: false }); // **FIX: Changed to passive: false because we use preventDefault()**
 
@@ -993,9 +1036,9 @@
                     item_id: product.id,
                     item_name: product.name,
                     price: product.price, // BigQuery field is 'price', not 'item_price'
-                    item_category: product.category,
-                    item_brand: product.brand || null,
-                    item_varient: product.variant || null
+
+                    item_category: product.category
+
                 }
             });
 
@@ -1050,15 +1093,17 @@
                     toggleDetailsBtn.textContent = 'Hide Details';
 
                     // Track 'View_Product_Details' event when details are expanded
-                    EventTracker.track('View_Product_Details', {
+
+                    EventTracker.track('view_product_details', {
+
                         item: { // Send item details again for context of what details were viewed
                             item_id: product.id,
                             item_name: product.name,
                             item_category: product.category,
-                            item_brand: product.brand || null,
-                            item_varient: product.variant || null
+
+                            price: product.price,
                         },
-                        description_length: product.description ? product.description.length : 0 // Example additional param
+
                     });
                 } else {
                     allDetailsSection.classList.remove('show-details'); // Remove class for animation
@@ -1114,20 +1159,40 @@
                 alertMessage("Please write your review before submitting.");
                 return;
             }
+
+            const product = products.find(p => p.id === productId);
+            if (!product) {
+                console.error('Product not found for review submission.');
+                return;
+            }
+
             console.log(`Submitting review for product ${productId}: Rating ${rating}, Review: "${reviewText}"`);
-            EventTracker.track('User_Reviews', {
-                review: { // Match the BigQuery RECORD type for 'review'
+            
+            // Generate a unique review_id
+            const reviewId = 'review-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
+
+            // UPDATED: Pass the product details in the 'item' record, and the review with review_id
+            EventTracker.track('user_reviews', {
+                item: { 
+                    item_id: product.id,
+                    item_name: product.name,
+                    item_category: product.category,
+                    price: product.price,
+                },
+                review: { 
+                    review_id: reviewId, // New field
                     product_id: productId,
                     rating: parseInt(rating),
                     review_text: reviewText,
-                }
+                },
+                viewed_reviews_count: 0 // Assuming no reviews are visible when a user submits a new one
             });
+            
+
             alertMessage('Review submitted! (Demo)');
             // Clear form
             document.getElementById('review-rating').value = '5';
             document.getElementById('review-text').value = '';
-            // Optionally re-render reviews
-            // renderReviews(productId);
         }
 
         function renderReviews(productId) {
@@ -1137,11 +1202,19 @@
                 { user: 'Bob', rating: 4, text: 'Good quality, met my expectations.', timestamp: '2025-07-22' }
             ];
 
+
+            const product = products.find(p => p.id === productId);
+            if (!product) {
+                console.error('Product not found for review tracking.');
+                return;
+            }
+
             // UPDATED: NOW PASSING PRODUCT ID AND VIEWED REVIEWS COUNT CORRECTLY
             console.log(`Fetching reviews for product ${productId}`);
-            EventTracker.track('View_User_Reviews', {
+            EventTracker.track('view_user_reviews', {
                 viewed_reviews_count: mockReviews.length, // Send viewed_reviews_count directly at top-level
-                item: { item_id: productId }, // Correctly send product_id nested under 'item'
+                item: { item_id: product.id }, // Correctly send product_id nested under 'item'
+
             });
 
             const reviewsDisplayArea = document.getElementById('reviews-display-area');
@@ -1397,7 +1470,9 @@
                         promotion: { // Match BigQuery RECORD type for 'promotion'
                             promotion_id: promotionId,
                             promotion_name: promotionName,
-                            creative_slot: creativeSlot
+
+                            creative_slot: creativeSlot // This will be mapped to creative_name in the track function
+
                         }
                     });
                 });
@@ -1408,7 +1483,9 @@
                 handleHashChange();
             } else {
                 // Determine initial page based on whether a user is "logged in" from previous session
-                const storedUserId = localStorage.getItem('user_id');
+
+                const storedUserId = sessionStorage.getItem('user_id');
+
                 if (storedUserId && !storedUserId.startsWith('anon-')) { // Assume if not 'anon-', then it was a logged-in user
                     showPage('main');
                 } else {
@@ -1435,33 +1512,46 @@
             // Wire up the dynamically added buttons
             // Define global functions for manual triggers to be accessible from console/buttons
             window.simulateProductDetailsView = (productId, productName, productCategory, productPrice, productBrand, productVariant) => {
-                EventTracker.track('View_Product_Details', {
+
+                EventTracker.track('view_product_details', {
+
                     item: {
                         item_id: productId,
                         item_name: productName,
                         item_category: productCategory,
                         price: productPrice,
-                        item_brand: productBrand,
-                        item_varient: productVariant
-                    },
-                    description_length: 100 // Dummy value
+
+                    }
+
                 });
                 alertMessage(`'View_Product_Details' event sent for ${productName}.`);
             };
 
             window.simulateUserReviewSubmission = (productId, reviewText, rating) => {
-                EventTracker.track('User_Reviews', {
+
+                const dummyProduct = products.find(p => p.id === productId);
+                const reviewId = 'review-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
+                EventTracker.track('user_reviews', {
+                    item: {
+                        item_id: dummyProduct.id,
+                        item_name: dummyProduct.name,
+                        item_category: dummyProduct.category,
+                        price: dummyProduct.price,
+                    },
                     review: {
+                        review_id: reviewId,
                         product_id: productId,
                         rating: rating,
                         review_text: reviewText
-                    }
+                    },
+                    viewed_reviews_count: 0
                 });
-                alertMessage(`'User_Reviews' event sent for product ${productId}.`);
+                alertMessage(`'user_reviews' event sent for product ${productId}.`);
             };
 
             window.simulateViewUserReviews = (productId, count) => {
-                EventTracker.track('View_User_Reviews', {
+                EventTracker.track('view_user_reviews', {
+
                     viewed_reviews_count: count,
                     item: { item_id: productId }
                 });
