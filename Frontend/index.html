@@ -597,7 +597,7 @@
                 click: 'https://asia-south1-svaraflow.cloudfunctions.net/process_click_event',//'http://127.0.0.1:8080',
                 scroll: 'https://asia-south1-svaraflow.cloudfunctions.net/process_scroll_event',//'http://127.0.0.1:8088',
                 view_page: 'https://asia-south1-svaraflow.cloudfunctions.net/process_view_page_event',//'http://127.0.0.1:8082',
-                zooming: 'https://asia-south1-svaraflow.cloudfunctions.net/process_zooming_event',// 'http://127.0.0.1:8085',
+                zooming: 'https://asia-south1-svaraflow.cloudfunctions.net/process_zooming_event',//'http://127.0.0.1:8085',
                 user_reviews:'https://asia-south1-svaraflow.cloudfunctions.net/process_user_review_event ',//'http://127.0.0.1:8086',
                 view_user_reviews:'https://asia-south1-svaraflow.cloudfunctions.net/process_view_user_reviews_event',//'http://127.0.0.1:8087',
                 view_product_details: 'https://asia-south1-svaraflow.cloudfunctions.net/process_view_product_details_event',//'http://127.0.0.1:8090',
@@ -857,7 +857,24 @@
                     if (e.ctrlKey || e.metaKey) {
                         e.preventDefault();
                         const zoomDelta = e.deltaY;
-                        track('zooming', { zoom_level: zoomDelta });
+                        // Check if we are on the product detail page before tracking a zooming event
+                        if (currentPage === 'product-detail') {
+                            const hash = window.location.hash.substring(1);
+                            const productId = hash.split('=')[1];
+                            const currentProduct = products.find(p => p.id === productId);
+
+                            if (currentProduct) {
+                                track('zooming', {
+                                    zoom_level: zoomDelta,
+                                    item: {
+                                        item_id: currentProduct.id,
+                                        item_name: currentProduct.name,
+                                        item_category: currentProduct.category,
+                                        price: currentProduct.price,
+                                    }
+                                });
+                            }
+                        }
                     }
                 }, { passive: false });
                 window.addEventListener('beforeunload', EventTracker._endCurrentSessionInternal);
