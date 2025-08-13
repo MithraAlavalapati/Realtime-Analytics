@@ -5,17 +5,17 @@ const EventTracker = (() => {
 
     // --- CONFIGURATION ---
     const cloudFunctionUrls = {
-        details_of_product: ' https://asia-south1-svaraflow.cloudfunctions.net/process_details_of_product_event',
-        first_visit: 'http://127.0.0.1:8081',
-        product_image_zoom: ' https://asia-south1-svaraflow.cloudfunctions.net/process_product_image_zoom_event', // Corrected to a unique port
-        session_time: 'https://asia-south1-svaraflow.cloudfunctions.net/process_session_time_event',
-        store_visit: 'http://127.0.0.1:8092',
-        user_reviews: 'https://asia-south1-svaraflow.cloudfunctions.net/process_user_reviews_event',
-        view_page: ' https://asia-south1-svaraflow.cloudfunctions.net/process_view_page_event',
-        view_product: 'https://asia-south1-svaraflow.cloudfunctions.net/process_view_product_event',
-        view_promotion: 'http://127.0.0.1:8084',
-        view_user_reviews: 'https://asia-south1-svaraflow.cloudfunctions.net/process_view_user_reviews_event',
-        click: 'http://127.0.0.1:8080',
+        //details_of_product: ' https://asia-south1-svaraflow.cloudfunctions.net/process_details_of_product_event',
+        //first_visit: 'http://127.0.0.1:8081',
+        //product_image_zoom: ' https://asia-south1-svaraflow.cloudfunctions.net/process_product_image_zoom_event', // Corrected to a unique port
+        //session_time: 'https://asia-south1-svaraflow.cloudfunctions.net/process_session_time_event',
+        //store_visit: 'http://127.0.0.1:8092',
+        //user_reviews: 'https://asia-south1-svaraflow.cloudfunctions.net/process_user_reviews_event',
+        //view_page: ' https://asia-south1-svaraflow.cloudfunctions.net/process_view_page_event',
+        //view_product: 'https://asia-south1-svaraflow.cloudfunctions.net/process_view_product_event',
+        //view_promotion: 'http://127.0.0.1:8084',
+        //view_user_reviews: 'https://asia-south1-svaraflow.cloudfunctions.net/process_view_user_reviews_event',
+        //click: 'http://127.0.0.1:8080',
         scroll_hover_event: 'http://127.0.0.1:8072',
 
 
@@ -904,36 +904,61 @@ function renderProductDetail(productId) {
     
     renderReviewSection(productId);
 
-    const allDetailsSection = document.getElementById('all-details-section');
-    allDetailsSection.innerHTML = `
+    // Default Product Details
+    const defaultDetails = `
+        <h5 class="text-xl font-bold mb-4">Product Details</h5>
+        <p><strong>Brand:</strong> ${product.brand || 'N/A'}</p>
+        <p><strong>Category:</strong> ${product.category || 'N/A'}</p>
+        <p><strong>Delivery:</strong> Estimated delivery in 3-5 business days.</p>
+        <p><strong>Quantity:</strong> Limited stock available. Buy now!</p>
+        <p><strong>Highlights:</strong> High-quality materials, modern design, eco-friendly production.</p>
+        <p><strong>Important Note:</strong> Colors may vary slightly due to lighting conditions.</p>
+    `;
+    
+    // All Product Details including default ones
+    const allDetails = `
         <h5 class="text-xl font-bold mb-4">Product Specifications</h5>
         <p><strong>Brand:</strong> ${product.brand || 'N/A'}</p>
         <p><strong>Category:</strong> ${product.category || 'N/A'}</p>
+        <p><strong>Delivery:</strong> Estimated delivery in 3-5 business days.</p>
+        <p><strong>Quantity:</strong> Limited stock available. Buy now!</p>
+        <p><strong>Highlights:</strong> High-quality materials, modern design, eco-friendly production.</p>
+        <p><strong>Important Note:</strong> Colors may vary slightly due to lighting conditions.</p>
+        <p><strong>Product ID:</strong> ${product.id}</p>
         <p><strong>Variant:</strong> ${product.variant || 'N/A'}</p>
         <p><strong>Description:</strong> ${product.description || 'N/A'}</p>
-        <p><strong>Product ID:</strong> ${product.id}</p>
     `;
-    allDetailsSection.classList.add('hidden');
+
+    const allDetailsSection = document.getElementById('all-details-section');
+    allDetailsSection.innerHTML = defaultDetails;
+    allDetailsSection.classList.remove('hidden'); // Show default details by default
     toggleDetailsBtn.textContent = 'Show All Details';
     
     toggleDetailsBtn.onclick = () => {
-        const isHidden = allDetailsSection.classList.toggle('hidden');
-        toggleDetailsBtn.textContent = isHidden ? 'Show All Details' : 'Hide Details';
-        if (!isHidden) {
+        const isShowingAll = toggleDetailsBtn.textContent === 'Hide Details';
+        if (!isShowingAll) {
+            allDetailsSection.innerHTML = allDetails;
+            toggleDetailsBtn.textContent = 'Hide Details';
             EventTracker.track('details_of_product', {
-            seller_id: sellerId,
-            store_name: product.store,
-            item: {
-                item_id: product.id,
-                item_name: product.name,
-                item_category: product.category,
-                price: product.price,
-                item_brand: product.brand,
-                item_variant: product.variant,
-            },
-        });
+                seller_id: sellerId,
+                store_name: product.store,
+                item: {
+                    item_id: product.id,
+                    item_name: product.name,
+                    item_category: product.category,
+                    price: product.price,
+                    item_brand: product.brand,
+                    item_variant: product.variant,
+                },
+            });
+        } else {
+            allDetailsSection.innerHTML = defaultDetails;
+            toggleDetailsBtn.textContent = 'Show All Details';
         }
     };
+    
+    // Re-render the reviews section with default view
+    renderReviewSection(productId, 'default');
     
     detailAddToCartBtn.onclick = (event) => {
         const id = event.target.dataset.productId;
@@ -941,7 +966,7 @@ function renderProductDetail(productId) {
     };
 }
 
-function renderReviewSection(productId) {
+function renderReviewSection(productId, mode = 'default') {
     const reviewsSectionHtml = `
         <div id="reviews-section" class="mt-8">
             <h3 class="text-4xl font-bold mb-4">Customer Reviews</h3>
@@ -962,6 +987,10 @@ function renderReviewSection(productId) {
             <button id="submit-review-btn" class="btn btn-primary text-xl mt-4">Submit Review</button>
         </div>
     `;
+    const reviewsSection = document.querySelector('#product-detail-page .main-content #reviews-section');
+    if (reviewsSection) {
+        reviewsSection.remove();
+    }
     document.querySelector('#product-detail-page .main-content').insertAdjacentHTML('beforeend', reviewsSectionHtml);
 
     document.getElementById('submit-review-btn').addEventListener('click', () => {
@@ -970,9 +999,19 @@ function renderReviewSection(productId) {
         submitReview(productId, rating, reviewText);
     });
 
-    document.getElementById('view-reviews-btn').addEventListener('click', () => {
-        renderReviews(productId);
+    const viewReviewsButton = document.getElementById('view-reviews-btn');
+    viewReviewsButton.addEventListener('click', () => {
+        if (viewReviewsButton.textContent === 'View All Reviews') {
+            renderAllReviews(productId);
+            viewReviewsButton.textContent = 'View Few Reviews';
+        } else {
+            renderReviews(productId, 'default');
+            viewReviewsButton.textContent = 'View All Reviews';
+        }
     });
+
+    // Render the initial set of reviews based on mode
+    renderReviews(productId, mode);
 }
 
 function submitReview(productId, rating, reviewText) {
@@ -1013,32 +1052,46 @@ function submitReview(productId, rating, reviewText) {
     document.getElementById('review-text').value = '';
 }
 
-function renderReviews(productId) {
-    const mockReviews = [
-        { user: 'Alice', rating: 5, text: 'Absolutely love this product! Highly recommend.', timestamp: '2025-07-20', image: 'https://placehold.co/100x100/52b788/fff?text=Review+1' },
-        { user: 'Bob', rating: 4, text: 'Good quality, met my expectations.', timestamp: '2025-07-22', image: 'https://placehold.co/100x100/e0b686/fff?text=Review+2' }
-    ];
-
-    const product = products.find(p => p.id === productId);
-    if (!product) {
-        console.error('Product not found for review tracking.');
-        return;
-    }
-    
-    const sellerId = EventTracker.getSellerId(product.store);
-
-    EventTracker.track('view_user_reviews', {
-        seller_id: sellerId,
-        store_name: product.store,
-        viewed_reviews_count: mockReviews.length,
-        item: { item_id: product.id, item_name: product.name, item_category: product.category, price: product.price },
-    });
+function renderReviews(productId, mode = 'default') {
+    const mockReviews = [{
+        user: 'Alice',
+        rating: 5,
+        text: 'Absolutely love this product! Highly recommend.',
+        timestamp: '2025-07-20',
+        image: 'https://placehold.co/100x100/52b788/fff?text=Review+1'
+    }, {
+        user: 'Bob',
+        rating: 4,
+        text: 'Good quality, met my expectations.',
+        timestamp: '2025-07-22',
+        image: 'https://placehold.co/100x100/e0b686/fff?text=Review+2'
+    }, {
+        user: 'Charlie',
+        rating: 5,
+        text: 'The best purchase I have made this year!',
+        timestamp: '2025-07-23',
+        image: 'https://placehold.co/100x100/f08080/fff?text=Review+3'
+    }, {
+        user: 'Diana',
+        rating: 3,
+        text: 'It’s alright, but I expected more for the price.',
+        timestamp: '2025-07-25',
+        image: 'https://placehold.co/100x100/9b7e77/fff?text=Review+4'
+    }, ];
 
     const reviewsDisplayArea = document.getElementById('reviews-display-area');
+    if (!reviewsDisplayArea) return;
     reviewsDisplayArea.innerHTML = '';
+    
+    let reviewsToRender = [];
+    if (mode === 'default') {
+        reviewsToRender = mockReviews.slice(0, 2);
+    } else {
+        reviewsToRender = mockReviews;
+    }
 
-    if (mockReviews.length > 0) {
-        mockReviews.forEach(review => {
+    if (reviewsToRender.length > 0) {
+        reviewsToRender.forEach(review => {
             const reviewDiv = document.createElement('div');
             reviewDiv.className = 'review-div bg-white p-4 rounded-md shadow-sm border border-gray-200';
             reviewDiv.innerHTML = `
@@ -1058,10 +1111,54 @@ function renderReviews(productId) {
                 showImageViewer([img.src]);
             });
         });
-
     } else {
         reviewsDisplayArea.innerHTML = '<p class="text-gray-500">No reviews yet. Be the first to review!</p>';
     }
+}
+
+function renderAllReviews(productId) {
+    const mockReviews = [{
+        user: 'Alice',
+        rating: 5,
+        text: 'Absolutely love this product! Highly recommend.',
+        timestamp: '2025-07-20',
+        image: 'https://placehold.co/100x100/52b788/fff?text=Review+1'
+    }, {
+        user: 'Bob',
+        rating: 4,
+        text: 'Good quality, met my expectations.',
+        timestamp: '2025-07-22',
+        image: 'https://placehold.co/100x100/e0b686/fff?text=Review+2'
+    }, {
+        user: 'Charlie',
+        rating: 5,
+        text: 'The best purchase I have made this year!',
+        timestamp: '2025-07-23',
+        image: 'https://placehold.co/100x100/f08080/fff?text=Review+3'
+    }, {
+        user: 'Diana',
+        rating: 3,
+        text: 'It’s alright, but I expected more for the price.',
+        timestamp: '2025-07-25',
+        image: 'https://placehold.co/100x100/9b7e77/fff?text=Review+4'
+    }, ];
+    
+    const product = products.find(p => p.id === productId);
+    if (!product) {
+        console.error('Product not found for review tracking.');
+        return;
+    }
+    
+    const sellerId = EventTracker.getSellerId(product.store);
+
+    EventTracker.track('view_user_reviews', {
+        seller_id: sellerId,
+        store_name: product.store,
+        viewed_reviews_count: mockReviews.length,
+        item: { item_id: product.id, item_name: product.name, item_category: product.category, price: product.price },
+    });
+
+    renderReviews(productId, 'all');
 }
 
 function renderCategories() {
