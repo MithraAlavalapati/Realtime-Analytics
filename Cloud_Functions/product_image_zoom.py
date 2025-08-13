@@ -7,22 +7,22 @@ from flask_cors import cross_origin
 # Do NOT import google.cloud libraries at the top level here.
 # They will be imported inside the function to avoid the fork() error.
 
-# --- Cloud Function: Event Enricher for details_of_product ---
+# --- Cloud Function: Product Image Zoom Tracker ---
 @functions_framework.http
 @cross_origin()
-def process_details_of_product_event(request):
+def process_product_image_zoom_event(request):
     """
-    Processes a product details view event from an HTTP request.
+    Processes a product image zoom event.
     Initializes BigQuery and Pub/Sub clients within the function scope.
     """
     # --- IMPORTANT: Move all imports and client initialization HERE ---
     from google.cloud import bigquery, pubsub_v1
     from google.oauth2 import service_account
 
-    # --- CONFIGURATION (local to the function) ---
+    # --- CONFIGURATION (can be local to the function) ---
     PROJECT_ID = os.environ.get('GCP_PROJECT_ID', 'svaraflow')
     DATASET_ID = os.environ.get('BIGQUERY_DATASET_ID', 'seller1_data')
-    EVENT_TABLE_ID = os.environ.get('BIGQUERY_TABLE_ID_PRODUCT_DETAILS', 'details_of_product')
+    EVENT_TABLE_ID = os.environ.get('BIGQUERY_TABLE_ID_PRODUCT_ZOOM', 'product_image_zoom')
     NOTIFICATION_TOPIC_ID = 'seller-notifications-topic'
     SERVICE_ACCOUNT_KEY_PATH = "key.json"
 
@@ -53,50 +53,71 @@ def process_details_of_product_event(request):
 
     if client is None or event_table_ref is None or pubsub_publisher is None:
         return json.dumps({"status": "error", "message": "BigQuery or Pub/Sub client not ready."}), 500, response_headers
-
     if request.method == 'OPTIONS':
         return ('', 204, response_headers)
-
     if request.method != 'POST':
         return json.dumps({"status": "error", "message": "Method Not Allowed"}), 405, response_headers
-        
     if not request.is_json:
         return json.dumps({"status": "error", "message": "Request body must be JSON"}), 400, response_headers
 
     try:
         event_data = request.get_json()
-
+        
         # --- VALIDATION for REQUIRED fields from the schema ---
-        required_top_level = ['event_name', 'event_timestamp', 'session_id', 'page_location']
+        required_top_level = ['event_name', 'event_timestamp', 'session_id', 'page_location', 'seller_id', 'zoom_level']
+        required_item = ['item_id']
+        required_image_details = ['image_url']
+        required_device = ['category', 'os', 'browser']
+        required_geo = ['country', 'region', 'city']
+        
         if not all(field in event_data for field in required_top_level):
             return json.dumps({"status": "error", "message": "Missing required top-level fields."}), 400, response_headers
-        if event_data.get('event_name') != 'details_of_product':
+        if event_data.get('event_name') != 'product_image_zoom':
             return json.dumps({"status": "error", "message": "Event name mismatch."}), 400, response_headers
-        if not event_data.get('item', {}).get('item_id') or not event_data.get('seller_id'):
-            return json.dumps({"status": "error", "message": "Missing required 'item_id' or 'seller_id'."}), 400, response_headers
+        if not all(field in event_data.get('item', {}) for field in required_item):
+            return json.dumps({"status": "error", "message": "Missing required 'item' fields."}), 400, response_headers
+        if not all(field in event_data.get('image_details', {}) for field in required_image_details):
+            return json.dumps({"status": "error", "message": "Missing required 'image_details' fields."}), 400, response_headers
+        if not all(field in event_data.get('device', {}) for field in required_device):
+            return json.dumps({"status": "error", "message": "Missing required device fields."}), 400, response_headers
+        if not all(field in event_data.get('geo', {}) for field in required_geo):
+            return json.dumps({"status": "error", "message": "Missing required geo fields."}), 400, response_headers
 
+        # Explicitly build the row to insert, matching the schema
         row_to_insert = {
-            "event_name": event_data.get('event_name', 'details_of_product'),
+            "event_name": event_data.get('event_name'),
             "event_timestamp": event_data.get('event_timestamp'),
             "ingestion_timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
             "user_id": event_data.get('user_id'),
             "session_id": event_data.get('session_id'),
-            "page_location": event_data.get('page_location'),
-            "page_title": event_data.get('page_title'),
-            "page_duration_seconds": event_data.get('page_duration_seconds'),
             "seller_id": event_data.get('seller_id'),
             "store_name": event_data.get('store_name'),
+            "page_location": event_data.get('page_location'),
+            "page_title": event_data.get('page_title'),
+            "zoom_level": event_data.get('zoom_level'),
+            "zoom_duration_seconds": event_data.get('zoom_duration_seconds'),
             "item": {
                 "item_id": event_data.get('item', {}).get('item_id'),
-                "item_name": event_data.get('item', {}).get('item_name'),
-                "item_category": event_data.get('item', {}).get('item_category'),
-                "price": event_data.get('item', {}).get('price'),
-                "item_brand": event_data.get('item', {}).get('item_brand'),
-                "item_variant": event_data.get('item', {}).get('item_variant')
-            },
-            "device": event_data.get('device'),
-            "geo": event_data.get('geo'),
-            "traffic_source": event_data.get('traffic_source'),
+                "item_name": event_data.get('item', {}).get('item_name')
+            } if event_data.get('item') else None,
+            "image_details": {
+                "image_url": event_data.get('image_details', {}).get('image_url'),
+                "image_position": event_data.get('image_details', {}).get('image_position')
+            } if event_data.get('image_details') else None,
+            "device": {
+                "category": event_data.get('device', {}).get('category'),
+                "os": event_data.get('device', {}).get('os'),
+                "browser": event_data.get('device', {}).get('browser')
+            } if event_data.get('device') else None,
+            "geo": {
+                "country": event_data.get('geo', {}).get('country'),
+                "region": event_data.get('geo', {}).get('region'),
+                "city": event_data.get('geo', {}).get('city')
+            } if event_data.get('geo') else None,
+            "traffic_source": {
+                "source": event_data.get('traffic_source', {}).get('source'),
+                "medium": event_data.get('traffic_source', {}).get('medium')
+            } if event_data.get('traffic_source') else None,
         }
 
         errors = client.insert_rows_json(event_table_ref, [row_to_insert])
@@ -104,8 +125,8 @@ def process_details_of_product_event(request):
         if errors:
             print(f"BigQuery insert errors detail: {errors}")
             return json.dumps({"status": "error", "errors": errors}), 500, response_headers
-        
-        # --- NEW: Publish a message to the notification topic ---
+
+        # --- Publish a message to the notification topic ---
         seller_id = event_data.get('seller_id')
         store_name = event_data.get('store_name')
         if seller_id and store_name:
@@ -114,12 +135,12 @@ def process_details_of_product_event(request):
                 "store_name": store_name,
                 "event_name": event_data.get('event_name'),
                 "item_id": event_data.get('item', {}).get('item_id'),
-                "message": f"A customer viewed details for your product: {event_data.get('item', {}).get('item_name')}"
+                "message": f"A customer zoomed in on your product: {event_data.get('item', {}).get('item_name')}"
             }
             future = pubsub_publisher.publish(notification_topic_path, json.dumps(notification_payload).encode("utf-8"))
             print(f"Published notification for seller {seller_id}. Message ID: {future.result()}")
-
-        print(f"Successfully inserted event for item '{row_to_insert['item']['item_id']}'.")
+        
+        print(f"Successfully inserted 'product_image_zoom' event for item '{event_data.get('item', {}).get('item_id')}'.")
         return json.dumps({"status": "success", "inserted": True}), 200, response_headers
 
     except Exception as e:
