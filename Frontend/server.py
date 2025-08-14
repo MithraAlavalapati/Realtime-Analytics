@@ -28,6 +28,7 @@ users = [
     {"id": 102, "email": "trendythreads@gmail.com", "password": "trendythreads", "username": "Trendy Threads", "role": "seller"},
     {"id": 103, "email": "techemporium@gmail.com", "password": "techemporium", "username": "Tech Emporium", "role": "seller"},
     {"id": 104, "email": "activezone@gmail.com", "password": "activezone", "username": "Active Zone", "role": "seller"},
+    {"id": 'general-promotions', "email": "promotions@example.com", "password": "promopass", "username": "General Promotions", "role": "seller"}, # Updated seller ID to match Cloud Function payload
 ]
 
 carts = []
@@ -133,7 +134,7 @@ def require_auth(role=None):
     
     g.user_id = current_session["user_id"]
     if role:
-        user = next((u for u in users if u['id'] == g.user_id), None)
+        user = next((u for u in users if str(u['id']) == str(g.user_id)), None) # Use str() for safe comparison
         if user and user['role'] == role:
             return True
         return False
@@ -214,7 +215,7 @@ def get_current_user():
     if "user_id" in current_session:
         user_id = current_session["user_id"]
         role = current_session["role"]
-        user = next((u for u in users if u['id'] == user_id), None)
+        user = next((u for u in users if str(u['id']) == str(user_id)), None) # Use str() for safe comparison
         if user:
             return jsonify({"success": True, "user": {"id": user['id'], "role": user['role'], "username": user['username']}})
     return jsonify({"success": False, "message": "No user is logged in."}), 401
@@ -268,7 +269,7 @@ def get_product(product_id):
         return jsonify({"message": "Product not found."}), 404
 
     user_id = current_session.get('user_id', 'anonymous')
-    customer = next((u for u in users if u['id'] == user_id), None)
+    customer = next((u for u in users if str(u['id']) == str(user_id)), None) # Use str() for safe comparison
     seller = next((u for u in users if u['id'] == product['seller_id']), None)
 
     if customer and seller:
@@ -296,7 +297,7 @@ def get_seller_products():
     if not require_auth(role="seller"):
         return jsonify({"success": False, "message": "Seller authentication required."}), 401
 
-    seller_products = [p for p in products if p['seller_id'] == g.user_id]
+    seller_products = [p for p in products if str(p['seller_id']) == str(g.user_id)] # Use str() for safe comparison
 
     return jsonify({"success": True, "products": seller_products})
 
@@ -313,7 +314,7 @@ def upload_product():
     if not all([name, description, price, image_file]):
         return jsonify({"success": False, "message": "Missing product data or image."}), 400
 
-    seller = next((u for u in users if u['id'] == g.user_id), None)
+    seller = next((u for u in users if str(u['id']) == str(g.user_id)), None) # Use str() for safe comparison
     if not seller:
         return jsonify({"success": False, "message": "Seller not found."}), 404
 
@@ -357,7 +358,7 @@ def get_seller_analytics():
     if not require_auth(role="seller"):
         return jsonify({"success": False, "message": "Seller authentication required."}), 401
 
-    seller_products_ids = [p['id'] for p in products if p['seller_id'] == g.user_id]
+    seller_products_ids = [p['id'] for p in products if str(p['seller_id']) == str(g.user_id)] # Use str() for safe comparison
 
     analytics = {}
     for event in user_events:
@@ -379,13 +380,14 @@ def get_seller_messages():
     if not require_auth(role="seller"):
         return jsonify({"success": False, "message": "Seller authentication required."}), 401
 
-    seller_messages = [m for m in messages if m['receiver_id'] == g.user_id]
+    seller_messages = [m for m in messages if str(m['receiver_id']) == str(g.user_id)] # Use str() for safe comparison
 
     return jsonify({"success": True, "messages": seller_messages})
 
 # New endpoint to receive push notifications from the worker
 @app.route('/api/notifications/receive', methods=['POST'])
 def receive_notification():
+    # ...
     data = request.get_json()
     store_name = data.get('store_name')
     
@@ -393,7 +395,7 @@ def receive_notification():
     seller_id = data.get('seller_id')
     
     # Find the user by ID from the payload
-    seller_user = next((u for u in users if str(u['id']) == seller_id and u['role'] == 'seller'), None)
+    seller_user = next((u for u in users if str(u['id']) == str(seller_id) and u['role'] == 'seller'), None)
     
     # If the user is an admin acting as a seller, their user ID will be in the session
     if not seller_user:
@@ -460,7 +462,7 @@ def select_seller_account():
     data = request.get_json()
     seller_id = data.get('seller_id')
     
-    seller = next((u for u in users if u['id'] == seller_id and u['role'] == 'seller'), None)
+    seller = next((u for u in users if str(u['id']) == str(seller_id) and u['role'] == 'seller'), None)
     
     if seller:
         current_session = {"user_id": seller['id'], "role": "seller", "store_name": seller['username']}

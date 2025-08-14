@@ -99,7 +99,7 @@
                             
                             document.querySelectorAll('.seller-card').forEach(card => {
                                 card.addEventListener('click', (e) => {
-                                    const sellerId = parseInt(e.target.dataset.sellerId);
+                                    const sellerId = e.target.dataset.sellerId;
                                     const sellerUsername = e.target.dataset.sellerUsername;
                                     selectSellerAccount(sellerId, sellerUsername);
                                 });
