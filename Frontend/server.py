@@ -14,20 +14,22 @@ def hash_password(password):
 
 # --- 1. Robust Database (In-memory simulation) ---
 products = [
-    {"id": 1, "seller_id": 101, "name": "Atomic Habits", "price": 22.5, "image_url": "https://placehold.co/600x400/5f4b8b/fff?text=Atomic+Habits", "category": "Books", "store": "The Book Nook", "brand": "Avery", "description": "An easy & proven way to build good habits & break bad ones."},
-    {"id": 2, "seller_id": 101, "name": "The Midnight Library", "price": 17.5, "image_url": "https://placehold.co/600x400/7a9e9f/fff?text=Midnight+Library", "category": "Books", "store": "The Book Nook", "brand": "Viking", "description": "A heartwarming and philosophical tale about life choices."},
-    {"id": 3, "seller_id": 102, "name": "Elegant Evening Dress", "price": 89.99, "image_url": "https://placehold.co/600x400/a55447/fff?text=Elegant+Dress", "category": "Fashion", "store": "Trendy Threads", "brand": "Glamourous Attire", "description": "A stunning dress perfect for evening events. Made from high-quality silk blend."},
-    {"id": 4, "seller_id": 103, "name": "Flagship Smartphone Pro", "price": 999.0, "image_url": "https://placehold.co/600x400/2f5d62/fff?text=Smartphone", "category": "Mobiles/Computers", "store": "Tech Emporium", "brand": "ApexTech", "description": "The latest flagship smartphone with a stunning display and pro-grade camera system."},
-    {"id": 5, "seller_id": 104, "name": "Yoga Mat Premium", "price": 25.0, "image_url": "https://placehold.co/600x400/52b788/fff?text=Yoga+Mat", "category": "Sports", "store": "Active Zone", "brand": "ZenFlow", "description": "Durable and comfortable yoga mat for all your fitness needs."}
+    # UPDATED: seller_id for products now uses string IDs
+    {"id": 1, "seller_id": "book-nook-seller", "name": "Atomic Habits", "price": 22.5, "image_url": "https://placehold.co/600x400/5f4b8b/fff?text=Atomic+Habits", "category": "Books", "store": "The Book Nook", "brand": "Avery", "description": "An easy & proven way to build good habits & break bad ones."},
+    {"id": 2, "seller_id": "book-nook-seller", "name": "The Midnight Library", "price": 17.5, "image_url": "https://placehold.co/600x400/7a9e9f/fff?text=Midnight+Library", "category": "Books", "store": "The Book Nook", "brand": "Viking", "description": "A heartwarming and philosophical tale about life choices."},
+    {"id": 3, "seller_id": "trendy-threads-seller", "name": "Elegant Evening Dress", "price": 89.99, "image_url": "https://placehold.co/600x400/a55447/fff?text=Elegant+Dress", "category": "Fashion", "store": "Trendy Threads", "brand": "Glamourous Attire", "description": "A stunning dress perfect for evening events. Made from high-quality silk blend."},
+    {"id": 4, "seller_id": "tech-emporium-seller", "name": "Flagship Smartphone Pro", "price": 999.0, "image_url": "https://placehold.co/600x400/2f5d62/fff?text=Smartphone", "category": "Mobiles/Computers", "store": "Tech Emporium", "brand": "ApexTech", "description": "The latest flagship smartphone with a stunning display and pro-grade camera system."},
+    {"id": 5, "seller_id": "active-zone-seller", "name": "Yoga Mat Premium", "price": 25.0, "image_url": "https://placehold.co/600x400/52b788/fff?text=Yoga+Mat", "category": "Sports", "store": "Active Zone", "brand": "ZenFlow", "description": "Durable and comfortable yoga mat for all your fitness needs."}
 ]
 
 users = [
     {"id": 1, "email": "user@customer.com", "password": "password123", "username": "customer1", "role": "customer"},
     {"id": 999, "email": "admin@example.com", "password": hash_password("admin"), "username": "Admin", "role": "admin"},
-    {"id": 101, "email": "thebooknook@gmail.com", "password": "thebooknook", "username": "The Book Nook", "role": "seller"},
-    {"id": 102, "email": "trendythreads@gmail.com", "password": "trendythreads", "username": "Trendy Threads", "role": "seller"},
-    {"id": 103, "email": "techemporium@gmail.com", "password": "techemporium", "username": "Tech Emporium", "role": "seller"},
-    {"id": 104, "email": "activezone@gmail.com", "password": "activezone", "username": "Active Zone", "role": "seller"},
+    # --- IMPORTANT CHANGE HERE: Seller IDs are now strings matching frontend/Cloud Function ---
+    {"id": "book-nook-seller", "email": "thebooknook@gmail.com", "password": "thebooknook", "username": "The Book Nook", "role": "seller"},
+    {"id": "trendy-threads-seller", "email": "trendythreads@gmail.com", "password": "trendythreads", "username": "Trendy Threads", "role": "seller"},
+    {"id": "tech-emporium-seller", "email": "techemporium@gmail.com", "password": "techemporium", "username": "Tech Emporium", "role": "seller"},
+    {"id": "active-zone-seller", "email": "activezone@gmail.com", "password": "activezone", "username": "Active Zone", "role": "seller"},
     {"id": 'general-promotions', "email": "promotions@example.com", "password": "promopass", "username": "General Promotions", "role": "seller"},
 ]
 
@@ -43,14 +45,11 @@ user_events = [
 # A dictionary to hold open connections for each seller
 clients = {}
 
-# --- 2. Flask Setup (CORRECTED: serving from the current directory) ---
-app = Flask(__name__, static_folder='.')
+# --- 2. Flask Setup ---
+app = Flask(__name__)
 CORS(app)
 
 current_session = {}
-
-# A dictionary to hold open connections for each seller
-clients = {}
 
 # --- GCS setup ---
 GCS_BUCKET_NAME = 'customersellerrelation'
@@ -78,7 +77,7 @@ def upload_blob(file_stream, destination_blob_name):
     if not gcs_client_ok:
         print("GCS client is not configured. File upload skipped.")
         return f"https://via.placeholder.co/400x300/f8f9fa?text=GCS+Error"
-
+    
     try:
         blob = gcs_bucket.blob(destination_blob_name)
         file_stream.seek(0)
@@ -110,26 +109,31 @@ def save_session(session_data):
 
 current_session = load_session()
 
-# --- 3. Frontend Routes to serve HTML, CSS, and JS files (CORRECTED) ---
+# --- 3. Frontend Routes to serve HTML, CSS, and JS files ---
 @app.route('/')
 def home():
-    # Serves login.html from the current directory
     return send_from_directory('.', 'login.html')
 
 @app.route('/<path:filename>')
-def serve_frontend_files(filename):
-    # This will serve any file (like index.html, webpage.js, seller_login.html)
-    # from the current directory.
+def serve_html(filename):
+    return send_from_directory('.', filename)
+
+@app.route('/js/<path:filename>')
+def serve_js(filename):
+    return send_from_directory('.', filename)
+
+@app.route('/css/<path:filename>')
+def serve_css(filename):
     return send_from_directory('.', filename)
 
 # --- 4. API Routes ---
 def require_auth(role=None):
     if "user_id" not in current_session:
         return False
-
+    
     g.user_id = current_session["user_id"]
     if role:
-        user = next((u for u in users if str(u['id']) == str(g.user_id)), None)
+        user = next((u for u in users if str(u['id']) == str(g.user_id)), None) # Use str() for safe comparison
         if user and user['role'] == role:
             return True
         return False
@@ -147,7 +151,7 @@ def login():
     email = data.get('email')
     password = data.get('password')
     role = data.get('role')
-
+    
     user = next((u for u in users if u['email'] == email), None)
 
     if user and user['role'] == role:
@@ -183,7 +187,8 @@ def admin_signup():
     if any(u['email'] == email for u in users):
         return jsonify({"success": False, "message": "An account with this email already exists."}), 409
 
-    new_admin_id = max(u['id'] for u in users) + 1 if users else 1
+    new_admin_id = str(uuid.uuid4()) # Assign a UUID as string ID for new users if needed, or manage ID generation carefully.
+
     new_admin_user = {
         "id": new_admin_id,
         "email": email,
@@ -210,7 +215,7 @@ def get_current_user():
     if "user_id" in current_session:
         user_id = current_session["user_id"]
         role = current_session["role"]
-        user = next((u for u in users if str(u['id']) == str(user_id)), None)
+        user = next((u for u in users if str(u['id']) == str(user_id)), None) # Use str() for safe comparison
         if user:
             return jsonify({"success": True, "user": {"id": user['id'], "role": user['role'], "username": user['username']}})
     return jsonify({"success": False, "message": "No user is logged in."}), 401
@@ -224,7 +229,7 @@ def google_login():
     if role == 'customer':
         user = next((u for u in users if u['role'] == 'customer'), None)
     elif role == 'seller':
-        user = next((u for u in users if u['role'] == 'admin'), None)
+        user = next((u for u in users if u['role'] == 'admin'), None) # Google login for seller currently maps to admin
     else:
         return jsonify({"success": False, "message": "Invalid role."}), 401
 
@@ -256,21 +261,22 @@ def get_products():
         print(f"Error fetching products from GCS: {e}")
         return jsonify({"success": False, "message": "Failed to fetch all products. Check GCS bucket and permissions."}), 500
 
-@app.route('/api/products/<int:product_id>', methods=['GET'])
+@app.route('/api/products/<product_id>', methods=['GET']) # Changed to <product_id> to handle string IDs
 def get_product(product_id):
-    product = next((p for p in products if p['id'] == product_id), None)
+    # Ensure product_id is treated as string for comparison if product IDs are strings
+    product = next((p for p in products if str(p['id']) == str(product_id)), None)
 
     if not product:
         return jsonify({"message": "Product not found."}), 404
 
     user_id = current_session.get('user_id', 'anonymous')
-    customer = next((u for u in users if str(u['id']) == str(user_id)), None)
-    seller = next((u for u in users if u['id'] == product['seller_id']), None)
+    customer = next((u for u in users if str(u['id']) == str(user_id)), None) # Use str() for safe comparison
+    seller = next((u for u in users if str(u['id']) == str(product['seller_id'])), None) # Ensure seller_id is also string for lookup
 
     if customer and seller:
         new_message = {
             "id": len(messages) + 1,
-            "sender_id": 'system',
+            "sender_id": 'system', # Changed sender to 'system'
             "receiver_id": seller['id'],
             "content": f"Customer {customer['username']} (Email: {customer['email']}) is viewing your product: {product['name']}.",
             "product_id": product_id,
@@ -292,7 +298,7 @@ def get_seller_products():
     if not require_auth(role="seller"):
         return jsonify({"success": False, "message": "Seller authentication required."}), 401
 
-    seller_products = [p for p in products if str(p['seller_id']) == str(g.user_id)]
+    seller_products = [p for p in products if str(p['seller_id']) == str(g.user_id)] # Use str() for safe comparison
 
     return jsonify({"success": True, "products": seller_products})
 
@@ -309,11 +315,13 @@ def upload_product():
     if not all([name, description, price, image_file]):
         return jsonify({"success": False, "message": "Missing product data or image."}), 400
 
-    seller = next((u for u in users if str(u['id']) == str(g.user_id)), None)
+    seller = next((u for u in users if str(u['id']) == str(g.user_id)), None) # Use str() for safe comparison
     if not seller:
         return jsonify({"success": False, "message": "Seller not found."}), 404
 
-    new_product_id = len(products) + 1
+    # new_product_id = len(products) + 1 # This will create integer IDs, may conflict if GCS products use strings
+    # Generate a UUID for new product IDs to ensure uniqueness and string format
+    new_product_id = str(uuid.uuid4()) 
 
     image_filename = f"{uuid.uuid4()}_{image_file.filename}"
     image_path = f"seller_uploads/{seller['email']}/images/{image_filename}"
@@ -323,7 +331,7 @@ def upload_product():
         return jsonify({"success": False, "message": "File upload failed. Check server logs."}), 500
 
     new_product = {
-        "id": new_product_id,
+        "id": new_product_id, # Use the new string UUID
         "seller_id": g.user_id,
         "name": name,
         "description": description,
@@ -353,12 +361,13 @@ def get_seller_analytics():
     if not require_auth(role="seller"):
         return jsonify({"success": False, "message": "Seller authentication required."}), 401
 
-    seller_products_ids = [p['id'] for p in products if str(p['seller_id']) == str(g.user_id)]
+    seller_products_ids = [p['id'] for p in products if str(p['seller_id']) == str(g.user_id)] # Use str() for safe comparison
 
     analytics = {}
     for event in user_events:
-        if event['event_type'] == 'product_view' and event['data']['product_id'] in seller_products_ids:
-            product_id = event['data']['product_id']
+        # Ensure product_id is treated as string for comparison
+        if event['event_type'] == 'product_view' and str(event['data']['product_id']) in [str(pid) for pid in seller_products_ids]:
+            product_id = str(event['data']['product_id']) # Convert to string
             user_id = event['data']['user_id']
 
             if product_id not in analytics:
@@ -375,30 +384,30 @@ def get_seller_messages():
     if not require_auth(role="seller"):
         return jsonify({"success": False, "message": "Seller authentication required."}), 401
 
-    seller_messages = [m for m in messages if str(m['receiver_id']) == str(g.user_id)]
+    seller_messages = [m for m in messages if str(m['receiver_id']) == str(g.user_id)] # Use str() for safe comparison
 
     return jsonify({"success": True, "messages": seller_messages})
 
 # New endpoint to receive push notifications from the worker
 @app.route('/api/notifications/receive', methods=['POST'])
 def receive_notification():
-    # ...
     data = request.get_json()
     store_name = data.get('store_name')
-
+    
     # We now get the seller ID from the payload directly, for consistency
     seller_id = data.get('seller_id')
-
-    # Find the user by ID from the payload
+    
+    # Find the user by ID from the payload (ensure comparison is string to string)
     seller_user = next((u for u in users if str(u['id']) == str(seller_id) and u['role'] == 'seller'), None)
-
+    
     # If the user is an admin acting as a seller, their user ID will be in the session
     if not seller_user:
-        # Find the seller user by store name if the direct ID mapping fails, e.g., for legacy events
+        # Fallback: Find the seller user by store name if the direct ID mapping fails
+        # Ensure username comparison is also consistent
         seller_user = next((u for u in users if u['username'] == store_name and u['role'] == 'seller'), None)
 
     if not seller_user:
-        print(f"Warning: Could not find user for seller_id {seller_id} or store_name {store_name}")
+        print(f"Warning: Could not find user for seller_id '{seller_id}' or store_name '{store_name}'.")
         return jsonify({"success": False, "message": "Seller user not found."}), 404
 
     new_message = {
@@ -415,6 +424,9 @@ def receive_notification():
         sse_client = clients[seller_user['id']]
         sse_data = f"data: {json.dumps(new_message)}\n\n"
         sse_client.put(sse_data)
+        print(f"Pushed SSE notification to client for seller {seller_user['username']} (ID: {seller_user['id']}).")
+    else:
+        print(f"No active SSE client for seller {seller_user['username']} (ID: {seller_user['id']}). Notification stored in memory.")
 
     print(f"Received and processed notification for seller {seller_user['username']} (ID: {seller_user['id']}): {data.get('message')}")
     return jsonify({"success": True, "message": "Notification received."})
@@ -427,6 +439,7 @@ def sse_stream():
 
     q = Queue()
     clients[g.user_id] = q
+    print(f"SSE client connected for seller ID: {g.user_id}")
 
     def event_stream():
         while True:
@@ -443,9 +456,9 @@ def sse_stream():
 def get_admin_seller_accounts():
     if not require_auth(role="admin"):
         return jsonify({"success": False, "message": "Admin authentication required."}), 401
-
+        
     seller_accounts = [{"id": u['id'], "username": u['username']} for u in users if u['role'] == 'seller']
-
+    
     return jsonify({"success": True, "sellers": seller_accounts})
 
 @app.route('/api/admin/select_seller', methods=['POST'])
@@ -453,15 +466,16 @@ def select_seller_account():
     global current_session
     if not require_auth(role="admin"):
         return jsonify({"success": False, "message": "Admin authentication required."}), 401
-
+        
     data = request.get_json()
     seller_id = data.get('seller_id')
-
+    
     seller = next((u for u in users if str(u['id']) == str(seller_id) and u['role'] == 'seller'), None)
-
+    
     if seller:
         current_session = {"user_id": seller['id'], "role": "seller", "store_name": seller['username']}
         save_session(current_session)
+        print(f"Admin switched to seller: {seller['username']} (ID: {seller['id']}).")
         return jsonify({"success": True, "message": f"Successfully switched to seller: {seller['username']}."})
     else:
         return jsonify({"success": False, "message": "Seller not found or invalid ID."}), 404
@@ -474,14 +488,16 @@ def remove_product():
 
     data = request.get_json()
     product_id = data.get('product_id')
-
+    
     initial_product_count = len(products)
-    products = [p for p in products if p['id'] != product_id]
+    # Ensure product_id is treated as string for comparison
+    products = [p for p in products if str(p['id']) != str(product_id)]
 
     if len(products) < initial_product_count:
+        print(f"Product with ID {product_id} removed by admin.")
         return jsonify({"success": True, "message": f"Product with ID {product_id} removed."})
     else:
         return jsonify({"success": False, "message": "Product not found."}), 404
 
 if __name__ == '__main__':
-    app.run(host='127.0.0.1', port=5000, debug=True)
+    app.run(debug=True, port=5000)
