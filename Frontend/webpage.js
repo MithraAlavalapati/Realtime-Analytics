@@ -5,6 +5,7 @@ const EventTracker = (() => {
 
     // --- CONFIGURATION ---
     const cloudFunctionUrls = {
+     
         details_of_product: ' https://asia-south1-svaraflow.cloudfunctions.net/process_details_of_product_event',
         first_visit: 'http://127.0.0.1:8081',
         product_image_zoom: ' https://asia-south1-svaraflow.cloudfunctions.net/process_product_image_zoom_event', // Corrected to a unique port
@@ -14,6 +15,7 @@ const EventTracker = (() => {
         view_page: ' https://asia-south1-svaraflow.cloudfunctions.net/process_view_page_event',
         view_product: 'https://asia-south1-svaraflow.cloudfunctions.net/process_view_product_event',
         view_user_reviews: 'https://asia-south1-svaraflow.cloudfunctions.net/process_view_user_reviews_event',
+
         scroll_hover_event: 'http://127.0.0.1:8072',
         product_hover_event: 'http://127.0.0.1:8072', // Ensure this points to the same function
     };
