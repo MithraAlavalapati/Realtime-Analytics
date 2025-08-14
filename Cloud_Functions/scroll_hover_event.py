@@ -33,7 +33,7 @@ STORE_MAP_REVERSE = {v: k for k, v in SELLER_MAP.items()}
 
 
 @functions_framework.http
-@cross_origin()
+@cross_origin(origins=["*"])
 def process_scroll_hover_event(request):
     """
     Processes scroll/hover events from an HTTP request.
@@ -95,10 +95,10 @@ def process_scroll_hover_event(request):
         event_name = event_data.get('event_name')
 
         if event_name == 'scroll_hover_event':
-            required_fields = ['user_id', 'session_id', 'section_name', 'event_type', 'page_location', 'timestamp_utc', 
+            required_fields = ['user_id', 'session_id', 'section_name','event_type', 'page_location', 'timestamp_utc', 
                                'device_type', 'browser_name', 'os_type', 'referrer_url', 'scroll_depth_pct']
         elif event_name == 'product_hover_event':
-            required_fields = ['user_id', 'session_id', 'item_name', 'seller_id', 'section_name', 'page_location', 'timestamp_utc', 
+            required_fields = ['user_id', 'session_id', 'item_name', 'seller_id','page_location', 'timestamp_utc', 
                                'device_type', 'browser_name', 'os_type', 'referrer_url']
         else:
             return json.dumps({"status": "error", "message": "Invalid event name."}), 400, response_headers

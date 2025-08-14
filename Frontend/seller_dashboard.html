@@ -67,229 +67,252 @@
     </div>
 
     <script>
-        const API_BASE_URL = 'http://localhost:5000/api';
-        let currentSellerId = localStorage.getItem('seller_id');
-        let currentStoreName = localStorage.getItem('store_name');
+    const API_BASE_URL = 'http://localhost:5000/api';
+    let currentSellerId = localStorage.getItem('seller_id');
+    let currentStoreName = localStorage.getItem('store_name');
 
-        const loginPage = document.getElementById('login-page');
-        const dashboardPage = document.getElementById('dashboard-page');
-        const formTitle = document.getElementById('form-title');
-        const sellerForm = document.getElementById('seller-form');
-        const toggleFormBtn = document.getElementById('toggle-form-btn');
-        const storeNameInput = document.getElementById('store-name-input');
-        const emailInput = document.getElementById('email-input');
-        const passwordInput = document.getElementById('password-input');
-        const formMessage = document.getElementById('form-message');
-        const logoutBtn = document.getElementById('logout-btn');
-        const productsTabBtn = document.getElementById('products-tab-btn');
-        const notificationsTabBtn = document.getElementById('notifications-tab-btn');
-        const productsSection = document.getElementById('products-section');
-        const notificationsSection = document.getElementById('notifications-section');
-        const notificationFeed = document.getElementById('notification-feed');
+    const loginPage = document.getElementById('login-page');
+    const dashboardPage = document.getElementById('dashboard-page');
+    const formTitle = document.getElementById('form-title');
+    const sellerForm = document.getElementById('seller-form');
+    const toggleFormBtn = document.getElementById('toggle-form-btn');
+    const storeNameInput = document.getElementById('store-name-input');
+    const emailInput = document.getElementById('email-input');
+    const passwordInput = document.getElementById('password-input');
+    const formMessage = document.getElementById('form-message');
+    const logoutBtn = document.getElementById('logout-btn');
+    const productsTabBtn = document.getElementById('products-tab-btn');
+    const notificationsTabBtn = document.getElementById('notifications-tab-btn');
+    const productsSection = document.getElementById('products-section');
+    const notificationsSection = document.getElementById('notifications-section');
+    const notificationFeed = document.getElementById('notification-feed');
 
-        let isRegistering = false;
-        let eventSource = null;
+    let isRegistering = false;
+    let eventSource = null;
 
-        // --- Helper function to handle unauthorized access gracefully ---
-        function handleUnauthorized() {
-            localStorage.removeItem('seller_id');
-            localStorage.removeItem('store_name');
-            currentSellerId = null;
-            currentStoreName = null;
-            if (eventSource) {
-                eventSource.close();
-            }
-            // Redirect to login page and show the login form
-            window.location.href = 'login.html';
+    // --- Helper function to handle unauthorized access gracefully ---
+    function handleUnauthorized() {
+        localStorage.removeItem('seller_id');
+        localStorage.removeItem('store_name');
+        currentSellerId = null;
+        currentStoreName = null;
+        if (eventSource) {
+            console.log("handleUnauthorized: Closing existing SSE connection.");
+            eventSource.close();
+            eventSource = null;
         }
+        // Redirect to login page and show the login form
+        window.location.href = 'login.html';
+    }
 
-        async function fetchProducts() {
-            try {
-                const response = await fetch(`${API_BASE_URL}/seller/products`);
-                if (response.status === 401) {
-                    handleUnauthorized();
-                    return;
-                }
-                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-                const products = await response.json();
-                renderProducts(products.products);
-            } catch (error) {
-                console.error("Failed to fetch products:", error);
-                document.getElementById('product-list').innerHTML = `<p class="text-red-500">Failed to load products.</p>`;
-            }
-        }
-        
-        function connectToSseStream() {
-            if (eventSource) {
-                eventSource.close();
-            }
-
-            eventSource = new EventSource(`${API_BASE_URL}/seller/sse`);
-
-            eventSource.onopen = function(event) {
-                console.log("SSE connection opened.");
-                // Clear the "Connecting" message on successful open
-                if (notificationFeed) {
-                    notificationFeed.innerHTML = '';
-                }
-            };
-
-            eventSource.onmessage = function(event) {
-                try {
-                    const data = JSON.parse(event.data);
-                    if (data && data.content) {
-                        const notificationItem = document.createElement('li');
-                        notificationItem.className = 'bg-gray-50 p-4 rounded-lg shadow-sm text-sm';
-                        notificationItem.innerHTML = `
-                            ${data.content}
-                            <span class="block text-xs text-gray-400 mt-1">${new Date(data.timestamp).toLocaleString()}</span>
-                        `;
-                        if (notificationFeed) {
-                            notificationFeed.prepend(notificationItem);
-                        }
-                    }
-                } catch (e) {
-                    console.error("Error parsing SSE message:", e, "Data:", event.data);
-                }
-            };
-
-            eventSource.onerror = function(error) {
-                console.error('SSE Error:', error);
-                if (eventSource.readyState === EventSource.CLOSED) {
-                    console.log("SSE connection closed. Attempting to reconnect in 5s...");
-                    if (notificationFeed) {
-                        notificationFeed.innerHTML = '<p class="text-gray-500">Connection lost. Reconnecting...</p>';
-                    }
-                    setTimeout(connectToSseStream, 5000);
-                }
-            };
-        }
-
-        function renderProducts(products) {
-            const productListContainer = document.getElementById('product-list');
-            if (!productListContainer) return;
-
-            productListContainer.innerHTML = '';
-            if (products.length === 0) {
-                productListContainer.innerHTML = `<p class="text-gray-500 col-span-full">You have no products listed.</p>`;
+    async function fetchProducts() {
+        try {
+            const response = await fetch(`${API_BASE_URL}/seller/products`);
+            if (response.status === 401) {
+                handleUnauthorized();
                 return;
             }
-            products.forEach(product => {
-                productListContainer.innerHTML += `
-                    <div class="bg-gray-50 p-4 rounded-lg shadow-sm">
-                        <h3 class="text-lg font-semibold">${product.name}</h3>
-                        <p class="text-sm text-gray-600">Category: ${product.category}</p>
-                        <p class="text-xl font-bold text-indigo-600 mt-2">$${product.price.toFixed(2)}</p>
-                    </div>
-                `;
-            });
+            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+            const products = await response.json();
+            renderProducts(products.products);
+        } catch (error) {
+            console.error("Failed to fetch products:", error);
+            document.getElementById('product-list').innerHTML = `<p class="text-red-500">Failed to load products.</p>`;
+        }
+    }
+    
+    function connectToSseStream() {
+        // Close any existing connection before opening a new one
+        if (eventSource) {
+            console.log("Closing existing SSE connection for seller:", currentSellerId);
+            eventSource.close();
+            eventSource = null; // Clear reference
         }
 
-        function showPage(page) {
-            if (loginPage) loginPage.style.display = page === 'login' ? 'flex' : 'none';
-            if (dashboardPage) dashboardPage.style.display = page === 'dashboard' ? 'block' : 'none';
+        if (!currentSellerId) {
+            console.warn("Cannot connect to SSE: currentSellerId is null. Please log in.");
+            if (notificationFeed) notificationFeed.innerHTML = '<p class="text-gray-500">Not connected to notifications (no seller ID).</p>';
+            return;
         }
 
-        function switchTab(tab) {
-            if (tab === 'products') {
-                if (productsTabBtn) productsTabBtn.classList.add('active');
-                if (notificationsTabBtn) notificationsTabBtn.classList.remove('active');
-                if (productsSection) productsSection.classList.remove('hidden');
-                if (notificationsSection) notificationsSection.classList.add('hidden');
-            } else {
-                if (notificationsTabBtn) notificationsTabBtn.classList.add('active');
-                if (productsTabBtn) productsTabBtn.classList.remove('active');
-                if (notificationsSection) notificationsSection.classList.remove('hidden');
-                if (productsSection) productsSection.classList.add('hidden');
+        console.log("Attempting to connect to SSE for seller ID:", currentSellerId);
+        eventSource = new EventSource(`${API_BASE_URL}/seller/sse`);
+
+        eventSource.onopen = function(event) {
+            console.log("SSE connection opened for seller ID:", currentSellerId);
+            // Clear the "Connecting" message on successful open
+            if (notificationFeed) {
+                notificationFeed.innerHTML = '<p class="text-gray-500">Connected to notifications. Waiting for events...</p>';
             }
-        }
-        
-        async function handleFormSubmit(event) {
-            event.preventDefault();
-            if (formMessage) formMessage.textContent = '';
-            const email = emailInput.value;
-            const password = passwordInput.value;
-            const store_name = storeNameInput.value;
-            let endpoint = '';
-            let body = {};
-            if (isRegistering) {
-                endpoint = '/seller/register';
-                body = { store_name, email, password };
-            } else {
-                endpoint = '/login';
-                body = { email, password, role: 'seller' };
-            }
+        };
 
+        eventSource.onmessage = function(event) {
+            console.log("SSE message received (raw):", event.data); // Log raw data
             try {
-                const response = await fetch(API_BASE_URL + endpoint, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(body)
-                });
-                const result = await response.json();
-                if (response.ok) {
-                    currentSellerId = result.user.id;
-                    currentStoreName = result.user.username;
-                    localStorage.setItem('seller_id', currentSellerId);
-                    localStorage.setItem('store_name', currentStoreName);
-                    if (formMessage) formMessage.textContent = result.message;
-                    if (document.getElementById('seller-store-name')) document.getElementById('seller-store-name').textContent = currentStoreName;
-                    showPage('dashboard');
-                    await fetchProducts(); 
-                    connectToSseStream();
+                const data = JSON.parse(event.data);
+                if (data && data.content) {
+                    console.log("Parsed notification data:", data); // Log parsed data
+                    const notificationItem = document.createElement('li');
+                    notificationItem.className = 'bg-gray-50 p-4 rounded-lg shadow-sm text-sm';
+                    notificationItem.innerHTML = `
+                        ${data.content}
+                        <span class="block text-xs text-gray-400 mt-1">${new Date(data.timestamp).toLocaleString()}</span>
+                    `; // Multiply by 1000 for JavaScript Date object if timestamp is in seconds
+                    if (notificationFeed) {
+                        notificationFeed.prepend(notificationItem);
+                        console.log("Notification appended to UI.");
+                    } else {
+                        console.error("notificationFeed element not found for appending notification.");
+                    }
                 } else {
-                    if (formMessage) formMessage.textContent = result.message;
+                    console.warn("SSE message data is empty or malformed:", data);
                 }
-            } catch (error) {
-                if (formMessage) formMessage.textContent = 'An unexpected error occurred.';
-                console.error('Error:', error);
+            } catch (e) {
+                console.error("Error parsing SSE message or appending to UI:", e, "Raw Data:", event.data);
             }
-        }
+        };
 
-        function handleLogout() {
-            fetch(`${API_BASE_URL}/logout`, { method: 'POST' })
-                .then(() => {
-                    handleUnauthorized();
-                })
-                .catch(error => {
-                    console.error("Error during logout:", error);
-                    handleUnauthorized();
-                });
-        }
-
-        function toggleForm() {
-            isRegistering = !isRegistering;
-            if (isRegistering) {
-                if (formTitle) formTitle.textContent = 'Seller Registration';
-                if (toggleFormBtn) toggleFormBtn.textContent = 'Switch to Login';
-                if (storeNameInput) storeNameInput.style.display = 'block';
-                if (sellerForm) sellerForm.querySelector('button').textContent = 'Register';
-            } else {
-                if (formTitle) formTitle.textContent = 'Seller Login';
-                if (toggleFormBtn) toggleFormBtn.textContent = 'Switch to Register';
-                if (storeNameInput) storeNameInput.style.display = 'none';
-                if (sellerForm) sellerForm.querySelector('button').textContent = 'Login';
+        eventSource.onerror = function(error) {
+            console.error('SSE Error for seller ID:', currentSellerId, error);
+            if (eventSource.readyState === EventSource.CLOSED) {
+                console.log("SSE connection closed. Attempting to reconnect in 5s...");
+                if (notificationFeed) {
+                    notificationFeed.innerHTML = '<p class="text-gray-500">Connection lost. Reconnecting...</p>';
+                }
+                setTimeout(connectToSseStream, 5000);
             }
-        }
-        
-        // Add listeners with null checks
-        if (sellerForm) sellerForm.addEventListener('submit', handleFormSubmit);
-        if (toggleFormBtn) toggleFormBtn.addEventListener('click', toggleForm);
-        if (logoutBtn) logoutBtn.addEventListener('click', handleLogout);
-        if (productsTabBtn) productsTabBtn.addEventListener('click', () => switchTab('products'));
-        if (notificationsTabBtn) notificationsTabBtn.addEventListener('click', () => switchTab('notifications'));
+        };
+    }
 
-        // Main check on page load
-        document.addEventListener('DOMContentLoaded', async () => {
-            if (currentSellerId && currentStoreName) {
+    function renderProducts(products) {
+        const productListContainer = document.getElementById('product-list');
+        if (!productListContainer) return;
+
+        productListContainer.innerHTML = '';
+        if (products.length === 0) {
+            productListContainer.innerHTML = `<p class="text-gray-500 col-span-full">You have no products listed.</p>`;
+            return;
+        }
+        products.forEach(product => {
+            productListContainer.innerHTML += `
+                <div class="bg-gray-50 p-4 rounded-lg shadow-sm">
+                    <h3 class="text-lg font-semibold">${product.name}</h3>
+                    <p class="text-sm text-gray-600">Category: ${product.category}</p>
+                    <p class="text-xl font-bold text-indigo-600 mt-2">$${product.price.toFixed(2)}</p>
+                </div>
+            `;
+        });
+    }
+
+    function showPage(page) {
+        if (loginPage) loginPage.style.display = page === 'login' ? 'flex' : 'none';
+        if (dashboardPage) dashboardPage.style.display = page === 'dashboard' ? 'block' : 'none';
+    }
+
+    function switchTab(tab) {
+        if (tab === 'products') {
+            if (productsTabBtn) productsTabBtn.classList.add('active');
+            if (notificationsTabBtn) notificationsTabBtn.classList.remove('active');
+            if (productsSection) productsSection.classList.remove('hidden');
+            if (notificationsSection) notificationsSection.classList.add('hidden');
+        } else {
+            if (notificationsTabBtn) notificationsTabBtn.classList.add('active');
+            if (productsTabBtn) productsTabBtn.classList.remove('active');
+            if (notificationsSection) notificationsSection.classList.remove('hidden');
+            if (productsSection) productsSection.classList.add('hidden');
+        }
+    }
+    
+    async function handleFormSubmit(event) {
+        event.preventDefault();
+        if (formMessage) formMessage.textContent = '';
+        const email = emailInput.value;
+        const password = passwordInput.value;
+        const store_name = storeNameInput.value;
+        let endpoint = '';
+        let body = {};
+        if (isRegistering) {
+            endpoint = '/seller/register';
+            body = { store_name, email, password };
+        } else {
+            endpoint = '/login';
+            body = { email, password, role: 'seller' };
+        }
+
+        try {
+            const response = await fetch(API_BASE_URL + endpoint, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body)
+            });
+            const result = await response.json();
+            if (response.ok) {
+                currentSellerId = result.user.id;
+                currentStoreName = result.user.username;
+                localStorage.setItem('seller_id', currentSellerId);
+                localStorage.setItem('store_name', currentStoreName);
+                if (formMessage) formMessage.textContent = result.message;
                 if (document.getElementById('seller-store-name')) document.getElementById('seller-store-name').textContent = currentStoreName;
                 showPage('dashboard');
-                await fetchProducts();
-                connectToSseStream();
+                await fetchProducts(); 
+                connectToSseStream(); // Re-establish SSE connection with the new seller ID
             } else {
-                showPage('login');
+                if (formMessage) formMessage.textContent = result.message;
             }
-        });
-    </script>
+        } catch (error) {
+            if (formMessage) formMessage.textContent = 'An unexpected error occurred.';
+            console.error('Error:', error);
+        }
+    }
+
+    function handleLogout() {
+        fetch(`${API_BASE_URL}/logout`, { method: 'POST' })
+            .then(() => {
+                handleUnauthorized();
+            })
+            .catch(error => {
+                console.error("Error during logout:", error);
+                handleUnauthorized();
+            });
+    }
+
+    function toggleForm() {
+        isRegistering = !isRegistering;
+        if (isRegistering) {
+            if (formTitle) formTitle.textContent = 'Seller Registration';
+            if (toggleFormBtn) toggleFormBtn.textContent = 'Switch to Login';
+            if (storeNameInput) storeNameInput.style.display = 'block';
+            if (sellerForm) sellerForm.querySelector('button').textContent = 'Register';
+        } else {
+            if (formTitle) formTitle.textContent = 'Seller Login';
+            if (toggleFormBtn) toggleFormBtn.textContent = 'Switch to Register';
+            if (storeNameInput) storeNameInput.style.display = 'none';
+            if (sellerForm) sellerForm.querySelector('button').textContent = 'Login';
+        }
+    }
+    
+    // Add listeners with null checks
+    if (sellerForm) sellerForm.addEventListener('submit', handleFormSubmit);
+    if (toggleFormBtn) toggleFormBtn.addEventListener('click', toggleForm);
+    if (logoutBtn) logoutBtn.addEventListener('click', handleLogout);
+    if (productsTabBtn) productsTabBtn.addEventListener('click', () => switchTab('products'));
+    if (notificationsTabBtn) notificationsTabBtn.addEventListener('click', () => switchTab('notifications'));
+
+    // Main check on page load
+    document.addEventListener('DOMContentLoaded', async () => {
+        // Ensure currentSellerId and currentStoreName are read before attempting SSE connection
+        currentSellerId = localStorage.getItem('seller_id');
+        currentStoreName = localStorage.getItem('store_name');
+
+        if (currentSellerId && currentStoreName) {
+            if (document.getElementById('seller-store-name')) document.getElementById('seller-store-name').textContent = currentStoreName;
+            showPage('dashboard');
+            await fetchProducts();
+            connectToSseStream(); // Call connect after seller info is loaded
+        } else {
+            showPage('login');
+        }
+    });
+</script>
 </body>
 </html>

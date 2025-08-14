@@ -3,30 +3,27 @@ import datetime
 import json
 import os
 from flask_cors import cross_origin
-
-# Do NOT import google.cloud libraries at the top level here.
-# They will be imported inside the function to avoid the fork() error.
+from google.cloud import bigquery, pubsub_v1
+from google.oauth2 import service_account
 
 # --- Cloud Function: Product Image View Tracker ---
 @functions_framework.http
-@cross_origin()
+@cross_origin(origins=["http://127.0.0.1:5000"])
 def process_product_image_view_event(request):
     """
     Processes a product image view event from an HTTP request.
     Initializes BigQuery and Pub/Sub clients within the function scope.
     """
-    # --- IMPORTANT: Move all Google Cloud client imports and initialization HERE ---
-    from google.cloud import bigquery, pubsub_v1
-    from google.oauth2 import service_account
-
     # --- CONFIGURATION (local to the function) ---
     PROJECT_ID = os.environ.get('GCP_PROJECT_ID', 'svaraflow')
     DATASET_ID = os.environ.get('BIGQUERY_DATASET_ID', 'seller1_data')
     EVENT_TABLE_ID = os.environ.get('BIGQUERY_TABLE_ID_PRODUCT_VIEW', 'product_image_view')
     NOTIFICATION_TOPIC_ID = 'seller-notifications-topic'
 
-    SERVICE_ACCOUNT_KEY_PATH = "key.json"
+    # Ensure the service account key path is correctly configured
+    SERVICE_ACCOUNT_KEY_PATH = "/home/chamundeswari/Realtime/testing/Realtime-Analytics/Cloud_Functions/key.json"
 
+    # --- CLIENT INITIALIZATION ---
     client = None
     event_table_ref = None
     pubsub_publisher = None
@@ -126,21 +123,27 @@ def process_product_image_view_event(request):
             print(f"BigQuery insert errors detail: {errors}")
             return json.dumps({"status": "error", "errors": errors}), 500, response_headers
 
-        # --- NEW: Publish a message to the notification topic ---
+        # --- UPDATED: Publish a message to the notification topic with image position ---
         seller_id = event_data.get('seller_id')
         store_name = event_data.get('store_name')
+        item_id = event_data.get('item', {}).get('item_id')
+        item_name = event_data.get('item', {}).get('item_name', 'your product')
+        image_position = event_data.get('image_details', {}).get('image_position', 'an unspecified')
+
         if seller_id and store_name:
+            notification_message = f"A customer viewed image number {image_position} for your product: {item_name}."
+
             notification_payload = {
                 "seller_id": seller_id,
                 "store_name": store_name,
                 "event_name": event_data.get('event_name'),
-                "item_id": event_data.get('item', {}).get('item_id'),
-                "message": f"A customer viewed an image for your product: {event_data.get('item', {}).get('item_name')}"
+                "item_id": item_id,
+                "message": notification_message
             }
             future = pubsub_publisher.publish(notification_topic_path, json.dumps(notification_payload).encode("utf-8"))
             print(f"Published notification for seller {seller_id}. Message ID: {future.result()}")
 
-        print(f"Successfully inserted 'product_image_view' event for item '{event_data.get('item', {}).get('item_id')}'.")
+        print(f"Successfully inserted 'product_image_view' event for item '{item_id}'.")
         return json.dumps({"status": "success", "inserted": True}), 200, response_headers
 
     except Exception as e:
