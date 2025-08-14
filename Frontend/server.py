@@ -28,7 +28,7 @@ users = [
     {"id": 102, "email": "trendythreads@gmail.com", "password": "trendythreads", "username": "Trendy Threads", "role": "seller"},
     {"id": 103, "email": "techemporium@gmail.com", "password": "techemporium", "username": "Tech Emporium", "role": "seller"},
     {"id": 104, "email": "activezone@gmail.com", "password": "activezone", "username": "Active Zone", "role": "seller"},
-    {"id": 'general-promotions', "email": "promotions@example.com", "password": "promopass", "username": "General Promotions", "role": "seller"}, # Updated seller ID to match Cloud Function payload
+    {"id": 'general-promotions', "email": "promotions@example.com", "password": "promopass", "username": "General Promotions", "role": "seller"},
 ]
 
 carts = []
@@ -43,8 +43,8 @@ user_events = [
 # A dictionary to hold open connections for each seller
 clients = {}
 
-# --- 2. Flask Setup ---
-app = Flask(__name__)
+# --- 2. Flask Setup (CORRECTED: serving from the current directory) ---
+app = Flask(__name__, static_folder='.')
 CORS(app)
 
 current_session = {}
@@ -78,7 +78,7 @@ def upload_blob(file_stream, destination_blob_name):
     if not gcs_client_ok:
         print("GCS client is not configured. File upload skipped.")
         return f"https://via.placeholder.co/400x300/f8f9fa?text=GCS+Error"
-    
+
     try:
         blob = gcs_bucket.blob(destination_blob_name)
         file_stream.seek(0)
@@ -110,31 +110,26 @@ def save_session(session_data):
 
 current_session = load_session()
 
-# --- 3. Frontend Routes to serve HTML, CSS, and JS files ---
+# --- 3. Frontend Routes to serve HTML, CSS, and JS files (CORRECTED) ---
 @app.route('/')
 def home():
-    return send_from_directory('../frontend', 'login.html')
+    # Serves login.html from the current directory
+    return send_from_directory('.', 'login.html')
 
 @app.route('/<path:filename>')
-def serve_html(filename):
-    return send_from_directory('../frontend', filename)
-
-@app.route('/js/<path:filename>')
-def serve_js(filename):
-    return send_from_directory('../frontend/js', filename)
-
-@app.route('/css/<path:filename>')
-def serve_css(filename):
-    return send_from_directory('../frontend/css', filename)
+def serve_frontend_files(filename):
+    # This will serve any file (like index.html, webpage.js, seller_login.html)
+    # from the current directory.
+    return send_from_directory('.', filename)
 
 # --- 4. API Routes ---
 def require_auth(role=None):
     if "user_id" not in current_session:
         return False
-    
+
     g.user_id = current_session["user_id"]
     if role:
-        user = next((u for u in users if str(u['id']) == str(g.user_id)), None) # Use str() for safe comparison
+        user = next((u for u in users if str(u['id']) == str(g.user_id)), None)
         if user and user['role'] == role:
             return True
         return False
@@ -152,7 +147,7 @@ def login():
     email = data.get('email')
     password = data.get('password')
     role = data.get('role')
-    
+
     user = next((u for u in users if u['email'] == email), None)
 
     if user and user['role'] == role:
@@ -215,7 +210,7 @@ def get_current_user():
     if "user_id" in current_session:
         user_id = current_session["user_id"]
         role = current_session["role"]
-        user = next((u for u in users if str(u['id']) == str(user_id)), None) # Use str() for safe comparison
+        user = next((u for u in users if str(u['id']) == str(user_id)), None)
         if user:
             return jsonify({"success": True, "user": {"id": user['id'], "role": user['role'], "username": user['username']}})
     return jsonify({"success": False, "message": "No user is logged in."}), 401
@@ -269,13 +264,13 @@ def get_product(product_id):
         return jsonify({"message": "Product not found."}), 404
 
     user_id = current_session.get('user_id', 'anonymous')
-    customer = next((u for u in users if str(u['id']) == str(user_id)), None) # Use str() for safe comparison
+    customer = next((u for u in users if str(u['id']) == str(user_id)), None)
     seller = next((u for u in users if u['id'] == product['seller_id']), None)
 
     if customer and seller:
         new_message = {
             "id": len(messages) + 1,
-            "sender_id": 'system', # Changed sender to 'system'
+            "sender_id": 'system',
             "receiver_id": seller['id'],
             "content": f"Customer {customer['username']} (Email: {customer['email']}) is viewing your product: {product['name']}.",
             "product_id": product_id,
@@ -297,7 +292,7 @@ def get_seller_products():
     if not require_auth(role="seller"):
         return jsonify({"success": False, "message": "Seller authentication required."}), 401
 
-    seller_products = [p for p in products if str(p['seller_id']) == str(g.user_id)] # Use str() for safe comparison
+    seller_products = [p for p in products if str(p['seller_id']) == str(g.user_id)]
 
     return jsonify({"success": True, "products": seller_products})
 
@@ -314,7 +309,7 @@ def upload_product():
     if not all([name, description, price, image_file]):
         return jsonify({"success": False, "message": "Missing product data or image."}), 400
 
-    seller = next((u for u in users if str(u['id']) == str(g.user_id)), None) # Use str() for safe comparison
+    seller = next((u for u in users if str(u['id']) == str(g.user_id)), None)
     if not seller:
         return jsonify({"success": False, "message": "Seller not found."}), 404
 
@@ -358,7 +353,7 @@ def get_seller_analytics():
     if not require_auth(role="seller"):
         return jsonify({"success": False, "message": "Seller authentication required."}), 401
 
-    seller_products_ids = [p['id'] for p in products if str(p['seller_id']) == str(g.user_id)] # Use str() for safe comparison
+    seller_products_ids = [p['id'] for p in products if str(p['seller_id']) == str(g.user_id)]
 
     analytics = {}
     for event in user_events:
@@ -380,7 +375,7 @@ def get_seller_messages():
     if not require_auth(role="seller"):
         return jsonify({"success": False, "message": "Seller authentication required."}), 401
 
-    seller_messages = [m for m in messages if str(m['receiver_id']) == str(g.user_id)] # Use str() for safe comparison
+    seller_messages = [m for m in messages if str(m['receiver_id']) == str(g.user_id)]
 
     return jsonify({"success": True, "messages": seller_messages})
 
@@ -390,13 +385,13 @@ def receive_notification():
     # ...
     data = request.get_json()
     store_name = data.get('store_name')
-    
+
     # We now get the seller ID from the payload directly, for consistency
     seller_id = data.get('seller_id')
-    
+
     # Find the user by ID from the payload
     seller_user = next((u for u in users if str(u['id']) == str(seller_id) and u['role'] == 'seller'), None)
-    
+
     # If the user is an admin acting as a seller, their user ID will be in the session
     if not seller_user:
         # Find the seller user by store name if the direct ID mapping fails, e.g., for legacy events
@@ -448,9 +443,9 @@ def sse_stream():
 def get_admin_seller_accounts():
     if not require_auth(role="admin"):
         return jsonify({"success": False, "message": "Admin authentication required."}), 401
-        
+
     seller_accounts = [{"id": u['id'], "username": u['username']} for u in users if u['role'] == 'seller']
-    
+
     return jsonify({"success": True, "sellers": seller_accounts})
 
 @app.route('/api/admin/select_seller', methods=['POST'])
@@ -458,12 +453,12 @@ def select_seller_account():
     global current_session
     if not require_auth(role="admin"):
         return jsonify({"success": False, "message": "Admin authentication required."}), 401
-        
+
     data = request.get_json()
     seller_id = data.get('seller_id')
-    
+
     seller = next((u for u in users if str(u['id']) == str(seller_id) and u['role'] == 'seller'), None)
-    
+
     if seller:
         current_session = {"user_id": seller['id'], "role": "seller", "store_name": seller['username']}
         save_session(current_session)
@@ -479,7 +474,7 @@ def remove_product():
 
     data = request.get_json()
     product_id = data.get('product_id')
-    
+
     initial_product_count = len(products)
     products = [p for p in products if p['id'] != product_id]
 
@@ -489,4 +484,4 @@ def remove_product():
         return jsonify({"success": False, "message": "Product not found."}), 404
 
 if __name__ == '__main__':
-    app.run(debug=True, port=5000)
+    app.run(host='127.0.0.1', port=5000, debug=True)

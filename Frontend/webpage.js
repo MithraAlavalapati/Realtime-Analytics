@@ -7,7 +7,8 @@ const EventTracker = (() => {
     const cloudFunctionUrls = {
         details_of_product: ' https://asia-south1-svaraflow.cloudfunctions.net/process_details_of_product_event',
         first_visit: 'http://127.0.0.1:8081',
-        product_image_zoom: ' https://asia-south1-svaraflow.cloudfunctions.net/process_product_image_zoom_event', // Corrected to a unique port
+        product_image_zoom: ' https://asia-south1-svaraflow.cloudfunctions.net/process_product_image_zoom_event',
+        product_image_view: 'http://127.0.0.1:8080',
         session_time: 'https://asia-south1-svaraflow.cloudfunctions.net/process_session_time_event',
         store_visit: 'http://127.0.0.1:8092',
         user_reviews: 'https://asia-south1-svaraflow.cloudfunctions.net/process_user_reviews_event',
@@ -15,9 +16,9 @@ const EventTracker = (() => {
         view_product: 'https://asia-south1-svaraflow.cloudfunctions.net/process_view_product_event',
         view_user_reviews: 'https://asia-south1-svaraflow.cloudfunctions.net/process_view_user_reviews_event',
         scroll_hover_event: 'http://127.0.0.1:8072',
-        product_hover_event: 'http://127.0.0.1:8072', // Ensure this points to the same function
+        product_hover_event: 'http://127.0.0.1:8072',
     };
-    
+
     // Centralized mapping for stores to seller IDs
     const SELLER_ID_MAP = {
         'Trendy Threads': 'trendy-threads-seller',
@@ -34,7 +35,7 @@ const EventTracker = (() => {
         'Shop by Category': 'General Promotions',
         'Featured Products': 'General Promotions',
     };
-    
+
     // A reverse map to get the store_name from the seller_id (for internal use if needed)
     const REVERSE_SELLER_ID_MAP = {};
     for (const storeName in SELLER_ID_MAP) {
@@ -101,7 +102,7 @@ const EventTracker = (() => {
             city: 'Bengaluru'
         };
     };
-    
+
     const getTrafficSource = () => {
         const referrer = document.referrer;
         let source = 'direct';
@@ -119,7 +120,10 @@ const EventTracker = (() => {
         const urlParams = new URLSearchParams(window.location.search);
         if (urlParams.has('utm_source')) source = urlParams.get('utm_source');
         if (urlParams.has('utm_medium')) medium = urlParams.get('utm_medium');
-        return { source, medium };
+        return {
+            source,
+            medium
+        };
     };
 
     const track = (eventName, specificPayload = {}) => {
@@ -147,7 +151,8 @@ const EventTracker = (() => {
 
         const pageDurationSeconds = Math.round((Date.now() - pageStartTime) / 1000);
 
-        const finalPayload = { ...commonPayload }; // Start with commonPayload
+        const finalPayload = { ...commonPayload
+        }; // Start with commonPayload
 
         // --- Apply event-specific payload based on schema ---
         if (eventName === 'details_of_product') {
@@ -277,7 +282,7 @@ const EventTracker = (() => {
             finalPayload.os_type = getDeviceData().os;
             finalPayload.timestamp_utc = new Date().toISOString();
         } else if (eventName === 'product_hover_event') {
-             // Build the payload for product hover, using a similar pattern
+            // Build the payload for product hover, using a similar pattern
             finalPayload.section_name = specificPayload.section_name;
             finalPayload.event_type = specificPayload.event_type;
             finalPayload.referrer_url = document.referrer;
@@ -396,7 +401,7 @@ const EventTracker = (() => {
         }
         const sessionStartTimeMs = parseInt(sessionStorage.getItem(`session_start_time_${currentUserId}`) || Date.now());
         const sessionDurationSeconds = Math.round((Date.now() - sessionStartTimeMs) / 1000);
-        
+
         const {
             seller_id,
             store_name
@@ -417,7 +422,7 @@ const EventTracker = (() => {
         sessionStorage.removeItem(`session_start_time_${currentUserId}`);
         sessionStorage.removeItem(`session_last_activity_${currentUserId}`);
     };
-    
+
     const startNewSession = () => {
         const newSessionId = 'session-' + currentUserId + '-' + Date.now() + '-' + Math.random().toString(36).substr(2, 5);
         sessionStorage.setItem(`session_id_${currentUserId}`, newSessionId);
@@ -476,7 +481,7 @@ const EventTracker = (() => {
             }
         }
     };
-    
+
     const getPageDuration = () => {
         return Math.round((Date.now() - pageStartTime) / 1000);
     };
@@ -503,7 +508,7 @@ const EventTracker = (() => {
         }
         return context;
     };
-    
+
     return {
         init,
         track,
@@ -640,89 +645,137 @@ let zoomStartTime = null;
 
 
 function showImageViewer(imageUrls, startIndex = 0) {
-currentImageUrls = imageUrls;
-currentImageIndex = startIndex;
- 
-if (sliderWrapper) {
-    sliderWrapper.innerHTML = '';
-    imageUrls.forEach((url, index) => {
-        const img = document.createElement('img');
-        img.src = url;
-        img.alt = `Product image ${index + 1}`;
-        img.className = 'slider-image max-w-full max-h-[90vh] object-contain';
-        if (sliderWrapper) {
-            sliderWrapper.appendChild(img);
-        }
-    });
-    updateSliderPosition();
-}
+    currentImageUrls = imageUrls;
+    currentImageIndex = startIndex;
 
-if (imageViewer) {
-    imageViewer.classList.add('visible');
-}
-document.body.style.overflow = 'hidden';
-
-if (imageUrls.length > 1) {
-    if (sliderPrevBtn) sliderPrevBtn.classList.remove('hidden');
-    if (sliderNextBtn) sliderNextBtn.classList.remove('hidden');
-} else {
-    if (sliderPrevBtn) sliderPrevBtn.classList.add('hidden');
-    if (sliderNextBtn) sliderNextBtn.classList.add('hidden');
-}
-const activePageElement = document.querySelector('#product-detail-page:not(.hidden)');
-if (activePageElement) {
-    const productId = window.location.hash.split('=')[1];
-    const product = products.find(p => p.id === productId);
-    if (product) {
-        zoomStartTime = Date.now();
-        EventTracker.track('product_image_zoom', {
-            seller_id: EventTracker.getSellerId(product.store),
-            store_name: product.store,
-            zoom_level: 1,
-            item: {
-                item_id: product.id,
-                item_name: product.name,
-            },
-            image_details: {
-                image_url: imageUrls[startIndex],
-                image_position: startIndex + 1,
-            },
+    if (sliderWrapper) {
+        sliderWrapper.innerHTML = '';
+        imageUrls.forEach((url, index) => {
+            const img = document.createElement('img');
+            img.src = url;
+            img.alt = `Product image ${index + 1}`;
+            img.className = 'slider-image max-w-full max-h-[90vh] object-contain';
+            if (sliderWrapper) {
+                sliderWrapper.appendChild(img);
+            }
         });
+        updateSliderPosition();
     }
-}
+
+    if (imageViewer) {
+        imageViewer.classList.add('visible');
+    }
+    document.body.style.overflow = 'hidden';
+
+    if (imageUrls.length > 1) {
+        if (sliderPrevBtn) sliderPrevBtn.classList.remove('hidden');
+        if (sliderNextBtn) sliderNextBtn.classList.remove('hidden');
+    } else {
+        if (sliderPrevBtn) sliderPrevBtn.classList.add('hidden');
+        if (sliderNextBtn) sliderNextBtn.classList.add('hidden');
+    }
+    const activePageElement = document.querySelector('#product-detail-page:not(.hidden)');
+    if (activePageElement) {
+        const productId = window.location.hash.split('=')[1];
+        const product = products.find(p => p.id === productId);
+        if (product) {
+            zoomStartTime = Date.now();
+            EventTracker.track('product_image_zoom', {
+                seller_id: EventTracker.getSellerId(product.store),
+                store_name: product.store,
+                zoom_level: 1,
+                item: {
+                    item_id: product.id,
+                    item_name: product.name,
+                },
+                image_details: {
+                    image_url: imageUrls[startIndex],
+                    image_position: startIndex + 1,
+                },
+            });
+        }
+    }
 }
 
 function hideImageViewer() {
-if (zoomStartTime) {
-    const zoomDurationSeconds = Math.round((Date.now() - zoomStartTime) / 1000);
+    if (zoomStartTime) {
+        const zoomDurationSeconds = Math.round((Date.now() - zoomStartTime) / 1000);
+        const productId = window.location.hash.split('=')[1];
+        const product = products.find(p => p.id === productId);
+        if (product) {
+            EventTracker.track('product_image_zoom', {
+                seller_id: EventTracker.getSellerId(product.store),
+                store_name: product.store,
+                zoom_level: 1,
+                zoom_duration_seconds: zoomDurationSeconds,
+                item: {
+                    item_id: product.id,
+                    item_name: product.name,
+                },
+                image_details: {
+                    image_url: currentImageUrls[currentImageIndex],
+                    image_position: currentImageIndex + 1,
+                },
+            });
+        }
+        zoomStartTime = null;
+    }
+    imageViewer.classList.remove('visible');
+    document.body.style.overflow = 'auto';
+}
+
+
+// --- UPDATED showNextImage function to track image views ---
+function showNextImage() {
+    if (currentImageUrls.length <= 1) return;
+    currentImageIndex = (currentImageIndex + 1) % currentImageUrls.length;
+    updateSliderPosition();
+
     const productId = window.location.hash.split('=')[1];
     const product = products.find(p => p.id === productId);
     if (product) {
-        EventTracker.track('product_image_zoom', {
+        EventTracker.track('product_image_view', {
             seller_id: EventTracker.getSellerId(product.store),
             store_name: product.store,
-            zoom_level: 1,
-            zoom_duration_seconds: zoomDurationSeconds,
             item: {
                 item_id: product.id,
                 item_name: product.name,
+                item_category: product.category,
+                price: product.price
             },
             image_details: {
                 image_url: currentImageUrls[currentImageIndex],
-                image_position: currentImageIndex + 1,
-            },
+                image_position: currentImageIndex + 1
+            }
         });
     }
-    zoomStartTime = null;
-}
-imageViewer.classList.remove('visible');
-document.body.style.overflow = 'auto';
 }
 
+// --- UPDATED showPrevImage function to track image views ---
+function showPrevImage() {
+    if (currentImageUrls.length <= 1) return;
+    currentImageIndex = (currentImageIndex - 1 + currentImageUrls.length) % currentImageUrls.length;
+    updateSliderPosition();
 
-
-
-
+    const productId = window.location.hash.split('=')[1];
+    const product = products.find(p => p.id === productId);
+    if (product) {
+        EventTracker.track('product_image_view', {
+            seller_id: EventTracker.getSellerId(product.store),
+            store_name: product.store,
+            item: {
+                item_id: product.id,
+                item_name: product.name,
+                item_category: product.category,
+                price: product.price
+            },
+            image_details: {
+                image_url: currentImageUrls[currentImageIndex],
+                image_position: currentImageIndex + 1
+            }
+        });
+    }
+}
 
 
 function updateSliderPosition() {
@@ -731,16 +784,7 @@ function updateSliderPosition() {
         img.style.display = index === currentImageIndex ? 'block' : 'none';
     });
 }
-function showNextImage() {
-    if (currentImageUrls.length <= 1) return;
-    currentImageIndex = (currentImageIndex + 1) % currentImageUrls.length;
-    updateSliderPosition();
-}
-function showPrevImage() {
-    if (currentImageUrls.length <= 1) return;
-    currentImageIndex = (currentImageIndex - 1 + currentImageUrls.length) % currentImageUrls.length;
-    updateSliderPosition();
-}
+
 
 function hideAllPages() {
     mainPage.classList.add('hidden');
@@ -780,8 +824,8 @@ function showPage(pageName, options = {}) {
         newHash = `category=${encodeURIComponent(options.category)}`;
     } else if (pageName === 'product-detail' && options.productId) {
         newHash = `product=${options.productId}`;
-         const product = products.find(p => p.id === options.productId);
-        if(product) {
+        const product = products.find(p => p.id === options.productId);
+        if (product) {
             storeName = product.store;
             sellerId = EventTracker.getSellerId(storeName);
         }
@@ -794,65 +838,65 @@ function showPage(pageName, options = {}) {
     if (window.location.hash.substring(1) !== newHash) {
         window.location.hash = newHash;
     }
-    
+
     EventTracker.track('view_page', {
         seller_id: sellerId,
         store_name: storeName
     });
     switch (pageName) {
-    case 'main':
-        mainPage.classList.remove('hidden');
-        renderStores();
-        renderCategories();
-        // Filter products to ensure they have a category and store
-        const filteredProducts = products.filter(p => p.category && p.store);
-        renderProducts(filteredProducts, productList);
-        updateCartCounts();
-        setupObserversForCurrentPage(); // Call here for the main page
-        break;
-    case 'store':
-        storesPage.classList.remove('hidden');
-        const storeProducts = products.filter(p => p.store === options.storeName);
-        storePageTitle.textContent = options.storeName;
-        const storeProductList = document.getElementById('store-product-list');
-        if (storeProductList) { // Add null check for robustness
-            storeProductList.dataset.section = options.storeName; // Set section name to store name
-        }
-        renderProducts(storeProducts, document.getElementById('store-product-list'));
-        updateCartCounts();
-        // Track store visit
-        EventTracker.track('store_visit', {
-            store_name: options.storeName,
-            seller_id: EventTracker.getSellerId(options.storeName),
-        });
-        setupObserversForCurrentPage(); // Call here for the store page
-        break;
-    case 'category':
-        categoryPage.classList.remove('hidden');
-        const productsByCategory = products.filter(p => p.category === options.category);
-        categoryPageTitle.textContent = options.category;
-        const categoryProductList = document.getElementById('category-product-list');
-        if (categoryProductList) {
-            categoryProductList.dataset.section = options.category; // Set section name to category name
-        }
-        renderProducts(productsByCategory, categoryProductList);
-        updateCartCounts();
-        setupObserversForCurrentPage(); // Call here for the category page
-        break;
-    case 'cart':
-        cartPage.classList.remove('hidden');
-        renderCart();
-        updateCartCounts();
-        setupObserversForCurrentPage(); // Call here for the cart page (if it has observable elements)
-        break;
-    case 'product-detail':
-        productDetailPage.classList.remove('hidden');
-        renderProductDetail(options.productId);
-        updateCartCounts();
-        setupObserversForCurrentPage(); // Call here for the product detail page
-        break;
-    default:
-        showPage('main');
+        case 'main':
+            mainPage.classList.remove('hidden');
+            renderStores();
+            renderCategories();
+            // Filter products to ensure they have a category and store
+            const filteredProducts = products.filter(p => p.category && p.store);
+            renderProducts(filteredProducts, productList);
+            updateCartCounts();
+            setupObserversForCurrentPage(); // Call here for the main page
+            break;
+        case 'store':
+            storesPage.classList.remove('hidden');
+            const storeProducts = products.filter(p => p.store === options.storeName);
+            storePageTitle.textContent = options.storeName;
+            const storeProductList = document.getElementById('store-product-list');
+            if (storeProductList) { // Add null check for robustness
+                storeProductList.dataset.section = options.storeName; // Set section name to store name
+            }
+            renderProducts(storeProducts, document.getElementById('store-product-list'));
+            updateCartCounts();
+            // Track store visit
+            EventTracker.track('store_visit', {
+                store_name: options.storeName,
+                seller_id: EventTracker.getSellerId(options.storeName),
+            });
+            setupObserversForCurrentPage(); // Call here for the store page
+            break;
+        case 'category':
+            categoryPage.classList.remove('hidden');
+            const productsByCategory = products.filter(p => p.category === options.category);
+            categoryPageTitle.textContent = options.category;
+            const categoryProductList = document.getElementById('category-product-list');
+            if (categoryProductList) {
+                categoryProductList.dataset.section = options.category; // Set section name to category name
+            }
+            renderProducts(productsByCategory, categoryProductList);
+            updateCartCounts();
+            setupObserversForCurrentPage(); // Call here for the category page
+            break;
+        case 'cart':
+            cartPage.classList.remove('hidden');
+            renderCart();
+            updateCartCounts();
+            setupObserversForCurrentPage(); // Call here for the cart page (if it has observable elements)
+            break;
+        case 'product-detail':
+            productDetailPage.classList.remove('hidden');
+            renderProductDetail(options.productId);
+            updateCartCounts();
+            setupObserversForCurrentPage(); // Call here for the product detail page
+            break;
+        default:
+            showPage('main');
     }
 }
 
@@ -880,8 +924,8 @@ function renderProducts(productsToRender, container) {
         productCard.href = `#product=${product.id}`;
         productCard.className = 'product-card block';
         // ADDED: attributes to pass product details for tracking
-        productCard.dataset.productName = product.name; 
-        productCard.dataset.sellerId = EventTracker.getSellerId(product.store); 
+        productCard.dataset.productName = product.name;
+        productCard.dataset.sellerId = EventTracker.getSellerId(product.store);
         productCard.dataset.productCategory = product.category;
 
         productCard.innerHTML = `
@@ -902,7 +946,7 @@ function renderProductDetail(productId) {
         productDetailPage.innerHTML = '<p class="text-red-500 text-center">Product not found.</p>';
         return;
     }
-    
+
     const sellerId = EventTracker.getSellerId(product.store);
 
     EventTracker.track('view_product', {
@@ -917,6 +961,23 @@ function renderProductDetail(productId) {
             item_variant: product.variant,
         }
     });
+
+    // NEW: Track an image view event for the first image when the page loads
+    EventTracker.track('product_image_view', {
+        seller_id: sellerId,
+        store_name: product.store,
+        item: {
+            item_id: product.id,
+            item_name: product.name,
+            item_category: product.category,
+            price: product.price
+        },
+        image_details: {
+            image_url: product.image,
+            image_position: 1
+        }
+    });
+
     productDetailStartTime = Date.now();
 
     productDetailImage.src = product.image;
@@ -942,18 +1003,34 @@ function renderProductDetail(productId) {
             productDetailImage.src = imgUrl;
             document.querySelectorAll('#thumbnail-gallery img').forEach(i => i.classList.remove('active'));
             img.classList.add('active');
+
+            // NEW: Track image view when a thumbnail is clicked
+            EventTracker.track('product_image_view', {
+                seller_id: sellerId,
+                store_name: product.store,
+                item: {
+                    item_id: product.id,
+                    item_name: product.name,
+                    item_category: product.category,
+                    price: product.price
+                },
+                image_details: {
+                    image_url: imgUrl,
+                    image_position: index + 1
+                }
+            });
         });
         thumbnailGallery.appendChild(img);
     });
 
     document.getElementById('product-image').addEventListener('click', () => showImageViewer(allImages, 0));
-    thumbnailGallery.querySelectorAll('img').forEach(img => {
+    thumbnailGallery.querySelectorAll('img').forEach((img, index) => {
         img.addEventListener('click', () => showImageViewer(allImages, index)); // Pass index here
     });
 
     const existingReviewsSection = document.getElementById('reviews-section');
     if (existingReviewsSection) existingReviewsSection.remove();
-    
+
     renderReviewSection(productId);
 
     // Default Product Details
@@ -966,7 +1043,7 @@ function renderProductDetail(productId) {
         <p><strong>Highlights:</strong> High-quality materials, modern design, eco-friendly production.</p>
         <p><strong>Important Note:</strong> Colors may vary slightly due to lighting conditions.</p>
     `;
-    
+
     // All Product Details including default ones
     const allDetails = `
         <h5 class="text-xl font-bold mb-4">Product Specifications</h5>
@@ -985,7 +1062,7 @@ function renderProductDetail(productId) {
     allDetailsSection.innerHTML = defaultDetails;
     allDetailsSection.classList.remove('hidden'); // Show default details by default
     toggleDetailsBtn.textContent = 'Show All Details';
-    
+
     toggleDetailsBtn.onclick = () => {
         const isShowingAll = toggleDetailsBtn.textContent === 'Hide Details';
         if (!isShowingAll) {
@@ -1008,10 +1085,10 @@ function renderProductDetail(productId) {
             toggleDetailsBtn.textContent = 'Show All Details';
         }
     };
-    
+
     // Re-render the reviews section with default view
     renderReviewSection(productId, 'default');
-    
+
     detailAddToCartBtn.onclick = (event) => {
         const id = event.target.dataset.productId;
         addToCart(id);
@@ -1076,7 +1153,7 @@ function submitReview(productId, rating, reviewText) {
         console.error('Product not found for review submission.');
         return;
     }
-    
+
     const reviewId = 'review-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
     const sellerId = EventTracker.getSellerId(product.store);
 
@@ -1084,13 +1161,13 @@ function submitReview(productId, rating, reviewText) {
         seller_id: sellerId,
         store_name: product.store,
         page_duration_seconds: EventTracker.getPageDuration(),
-        item: { 
+        item: {
             item_id: product.id,
             item_name: product.name,
             item_category: product.category,
             price: product.price,
         },
-        review: { 
+        review: {
             review_id: reviewId,
             rating: parseInt(rating),
             review_text: reviewText,
@@ -1098,7 +1175,7 @@ function submitReview(productId, rating, reviewText) {
             review_images_count: 0,
         }
     });
-    
+
     alertMessage('Review submitted! (Demo)');
     document.getElementById('review-rating').value = '5';
     document.getElementById('review-text').value = '';
@@ -1134,7 +1211,7 @@ function renderReviews(productId, mode = 'default') {
     const reviewsDisplayArea = document.getElementById('reviews-display-area');
     if (!reviewsDisplayArea) return;
     reviewsDisplayArea.innerHTML = '';
-    
+
     let reviewsToRender = [];
     if (mode === 'default') {
         reviewsToRender = mockReviews.slice(0, 2);
@@ -1194,20 +1271,25 @@ function renderAllReviews(productId) {
         timestamp: '2025-07-25',
         image: 'https://placehold.co/100x100/9b7e77/fff?text=Review+4'
     }, ];
-    
+
     const product = products.find(p => p.id === productId);
     if (!product) {
         console.error('Product not found for review tracking.');
         return;
     }
-    
+
     const sellerId = EventTracker.getSellerId(product.store);
 
     EventTracker.track('view_user_reviews', {
         seller_id: sellerId,
         store_name: product.store,
         viewed_reviews_count: mockReviews.length,
-        item: { item_id: product.id, item_name: product.name, item_category: product.category, price: product.price },
+        item: {
+            item_id: product.id,
+            item_name: product.name,
+            item_category: product.category,
+            price: product.price
+        },
     });
 
     renderReviews(productId, 'all');
@@ -1229,7 +1311,10 @@ function addToCart(productId) {
     if (existingItem) {
         existingItem.quantity++;
     } else {
-        cartItems.push({ productId: productId, quantity: 1 });
+        cartItems.push({
+            productId: productId,
+            quantity: 1
+        });
     }
     updateCartCounts();
     alertMessage('Product added to cart!');
@@ -1437,7 +1522,7 @@ function setupObserversForCurrentPage() {
     // Disconnect all previous observations to prevent duplicate events
     // This is important because elements might be re-rendered without being removed
     // from the DOM first, leading to multiple observers on the same element.
-    productAndSectionObserver.disconnect(); 
+    productAndSectionObserver.disconnect();
 
     // Observe all elements that have either data-section or data-product-name
     document.querySelectorAll('[data-section], [data-product-name]').forEach(element => {
@@ -1532,10 +1617,10 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     sliderNextBtn.addEventListener('click', showNextImage);
     sliderPrevBtn.addEventListener('click', showPrevImage);
-    
+
     // Initial call to set up observers for the main page content
     // This replaces your previous separate observer declarations and observations
     setupObserversForCurrentPage();
-    
+
     handleHashChange(); // This will call showPage, which in turn calls setupObserversForCurrentPage
 });
