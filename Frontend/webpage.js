@@ -5,20 +5,22 @@ const EventTracker = (() => {
 
     // --- CONFIGURATION ---
     const cloudFunctionUrls = {
-     
-        details_of_product: ' https://asia-south1-svaraflow.cloudfunctions.net/process_details_of_product_event',
-        first_visit: 'http://127.0.0.1:8081',
-        product_image_zoom: ' https://asia-south1-svaraflow.cloudfunctions.net/process_product_image_zoom_event',
-        product_image_view: 'http://127.0.0.1:8080',
+        details_of_product: 'https://asia-south1-svaraflow.cloudfunctions.net/process_details_of_product_event',
+        first_visit: ' https://asia-south1-svaraflow.cloudfunctions.net/process_first_store_visit_event',
+        product_image_zoom: 'https://asia-south1-svaraflow.cloudfunctions.net/process_product_image_zoom_event',
+        product_image_view: ' https://asia-south1-svaraflow.cloudfunctions.net/process_product_image_view_event',
         session_time: 'https://asia-south1-svaraflow.cloudfunctions.net/process_session_time_event',
-        store_visit: 'http://127.0.0.1:8092',
+        store_visit: 'https://asia-south1-svaraflow.cloudfunctions.net/process_store_visit_event',
         user_reviews: 'https://asia-south1-svaraflow.cloudfunctions.net/process_user_reviews_event',
         view_page: ' https://asia-south1-svaraflow.cloudfunctions.net/process_view_page_event',
         view_product: 'https://asia-south1-svaraflow.cloudfunctions.net/process_view_product_event',
         view_user_reviews: 'https://asia-south1-svaraflow.cloudfunctions.net/process_view_user_reviews_event',
+        scroll_hover_event: ' https://asia-south1-svaraflow.cloudfunctions.net/process_scroll_hover_event',
+        product_hover_event: ' https://asia-south1-svaraflow.cloudfunctions.net/process_scroll_hover_event',
+        item_click: ' https://asia-south1-svaraflow.cloudfunctions.net/track_item_time_event',
+        item_time_realtime: ' https://asia-south1-svaraflow.cloudfunctions.net/track_item_time_event',
+        item_time_final: ' https://asia-south1-svaraflow.cloudfunctions.net/track_item_time_event',
 
-        scroll_hover_event: 'http://127.0.0.1:8072',
-        product_hover_event: 'http://127.0.0.1:8072',
     };
 
     // Centralized mapping for stores to seller IDs
@@ -334,6 +336,11 @@ const EventTracker = (() => {
             finalPayload.page_duration_seconds = pageDurationSeconds;
             finalPayload.reviews_scroll_depth_percentage = specificPayload.reviews_scroll_depth_percentage || null;
             finalPayload.review_sort_order = specificPayload.review_sort_order || null;
+        } else if (eventName === 'item_click' || eventName === 'item_time_realtime' || eventName === 'item_time_final') {
+            // This is the new, shared logic for item_time events based on your schema
+            finalPayload.item_id = specificPayload.item_id;
+            finalPayload.duration_on_item = specificPayload.duration_on_item || null;
+            finalPayload.engagement_level = specificPayload.engagement_level;
         }
         // For 'click' and 'session_start', commonPayload is sufficient as per your provided schemas.
 
@@ -634,6 +641,8 @@ const storePageTitle = document.getElementById('store-page-title');
 const backToMainBtnStore = document.getElementById('back-to-main-btn-store');
 
 let productDetailStartTime = null;
+let highInterestTimer = null; // New global timer for high-interest event
+const HIGH_INTEREST_THRESHOLD_MS = 40 * 1000; // 40 seconds
 let storePageStartTime = null;
 
 // Image viewer elements
@@ -930,6 +939,19 @@ function renderProducts(productsToRender, container) {
         productCard.dataset.sellerId = EventTracker.getSellerId(product.store);
         productCard.dataset.productCategory = product.category;
 
+        // NEW: Add click event listener to track the item_click event
+        productCard.addEventListener('click', () => {
+            const clickedProduct = products.find(p => p.id === product.id);
+            if (clickedProduct) {
+                EventTracker.track('item_click', {
+                    seller_id: EventTracker.getSellerId(clickedProduct.store),
+                    store_name: clickedProduct.store,
+                    item_id: clickedProduct.id,
+                    engagement_level: 'click'
+                });
+            }
+        });
+
         productCard.innerHTML = `
             ${isBestSeller ? '<span class="best-seller-tag">Best Seller</span>' : ''}
             <img src="${product.image}" alt="${product.name}">
@@ -980,7 +1002,27 @@ function renderProductDetail(productId) {
         }
     });
 
+    // Clear any existing timer before starting a new one
+    if (highInterestTimer) {
+        clearTimeout(highInterestTimer);
+    }
+
     productDetailStartTime = Date.now();
+
+    // Start a timer for the high-interest notification
+    const HIGH_INTEREST_THRESHOLD_MS = 40 * 1000;
+    highInterestTimer = setTimeout(() => {
+        const product = products.find(p => p.id === productId);
+        if (product) {
+            EventTracker.track('item_time_realtime', {
+                seller_id: sellerId,
+                store_name: product.store,
+                item_id: product.id,
+                duration_on_item: HIGH_INTEREST_THRESHOLD_MS / 1000,
+                engagement_level: 'high_realtime'
+            });
+        }
+    }, HIGH_INTEREST_THRESHOLD_MS);
 
     productDetailImage.src = product.image;
     productDetailImage.alt = product.name;
@@ -1547,23 +1589,27 @@ document.addEventListener('DOMContentLoaded', () => {
     backToMainBtnCategory.addEventListener('click', () => window.location.hash = '');
     backToMainBtnCart.addEventListener('click', () => window.location.hash = '');
     backFromDetailBtn.addEventListener('click', () => {
+        // Clear the high-interest timer to prevent it from firing after the user leaves
+        if (highInterestTimer) {
+            clearTimeout(highInterestTimer);
+            highInterestTimer = null;
+        }
+
         if (productDetailStartTime) {
             const pageDurationSeconds = Math.round((Date.now() - productDetailStartTime) / 1000);
             const productId = window.location.hash.split('=')[1];
             const product = products.find(p => p.id === productId);
+
             if (product) {
-                EventTracker.track('view_product', {
+                const engagementLevel = pageDurationSeconds >= 40 ? 'high_final' : 'low_final';
+
+                // NEW: Send the final duration event to BigQuery
+                EventTracker.track('item_time_final', {
                     seller_id: EventTracker.getSellerId(product.store),
                     store_name: product.store,
-                    item: {
-                        item_id: product.id,
-                        item_name: product.name,
-                        item_category: product.category,
-                        price: product.price,
-                        item_brand: product.brand,
-                        item_variant: product.variant,
-                    },
-                    page_duration_seconds: pageDurationSeconds,
+                    item_id: product.id,
+                    duration_on_item: pageDurationSeconds,
+                    engagement_level: engagementLevel
                 });
             }
         }

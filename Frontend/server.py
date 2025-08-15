@@ -112,19 +112,19 @@ current_session = load_session()
 # --- 3. Frontend Routes to serve HTML, CSS, and JS files ---
 @app.route('/')
 def home():
-    return send_from_directory('.', 'login.html')
+    return send_from_directory('../frontend', 'login.html')
 
 @app.route('/<path:filename>')
 def serve_html(filename):
-    return send_from_directory('.', filename)
+    return send_from_directory('../frontend', filename)
 
 @app.route('/js/<path:filename>')
 def serve_js(filename):
-    return send_from_directory('.', filename)
+    return send_from_directory('../frontend/js', filename)
 
 @app.route('/css/<path:filename>')
 def serve_css(filename):
-    return send_from_directory('.', filename)
+    return send_from_directory('../frontend/css', filename)
 
 # --- 4. API Routes ---
 def require_auth(role=None):
