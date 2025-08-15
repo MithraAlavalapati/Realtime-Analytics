@@ -2,7 +2,6 @@ import functions_framework
 import datetime
 import json
 import os
-import requests
 from flask_cors import cross_origin
 
 # --- Cloud Function: Item Time Tracker ---
@@ -12,21 +11,22 @@ def track_item_time_event(request):
     """
     Processes item click and time events, logs to BigQuery, and sends conditional notifications.
     """
-    from google.cloud import bigquery
+    from google.cloud import bigquery, pubsub_v1
 
     # Configuration for your GCP project
     PROJECT_ID = os.environ.get('GCP_PROJECT_ID', 'svaraflow')
     DATASET_ID = os.environ.get('BIGQUERY_DATASET_ID', 'seller1_data')
     EVENT_TABLE_ID = os.environ.get('BIGQUERY_TABLE_ID_ITEM_TIME', 'item_time')
-    
-    # NEW: Define the local backend API URL
-    BACKEND_API_URL = 'http://localhost:5000/api/notifications/receive'
+    NOTIFICATION_TOPIC_ID = 'seller-notifications-topic'
 
     try:
         # Initialize Google Cloud clients
         client = bigquery.Client(project=PROJECT_ID)
         event_table_ref = client.dataset(DATASET_ID).table(EVENT_TABLE_ID)
+        pubsub_publisher = pubsub_v1.PublisherClient()
+        notification_topic_path = pubsub_publisher.topic_path(PROJECT_ID, NOTIFICATION_TOPIC_ID)
     except Exception as e:
+        # Provide a more detailed error message to aid with local debugging
         error_message = f"Cloud client initialization failed: {e}. Please ensure GOOGLE_APPLICATION_CREDENTIALS is set and has correct permissions."
         print(f"ERROR: {error_message}")
         return json.dumps({"status": "error", "message": error_message}), 500
@@ -50,10 +50,12 @@ def track_item_time_event(request):
         else:
             event_data = json.loads(request.data.decode('utf-8'))
         
+        # --- NEW: Log the incoming payload for easier debugging ---
         print(f"DEBUG: Received payload: {event_data}")
 
         event_name = event_data.get('event_name')
         
+        # --- CORRECTED VALIDATION LOGIC ---
         common_fields = ['event_name', 'event_timestamp', 'session_id', 'item_id']
         if not all(field in event_data for field in common_fields):
             return json.dumps({"status": "error", "message": "Missing required common fields."}), 400, response_headers
@@ -62,6 +64,7 @@ def track_item_time_event(request):
             if not all(field in event_data for field in ['duration_on_item', 'engagement_level']):
                 return json.dumps({"status": "error", "message": "Missing required fields for time-based event."}), 400, response_headers
         elif event_name == 'item_click':
+            # 'item_click' events don't need duration or engagement_level
             pass
         else:
             return json.dumps({"status": "error", "message": "Event name mismatch."}), 400, response_headers
@@ -82,9 +85,11 @@ def track_item_time_event(request):
             "traffic_source": event_data.get('traffic_source'),
         }
 
+        # --- Enhanced error handling for BigQuery insert ---
         errors = client.insert_rows_json(event_table_ref, [row_to_insert])
         if errors:
             print(f"BigQuery insert errors detail: {errors}")
+            # The errors from BigQuery can contain valuable context for debugging.
             return json.dumps({"status": "error", "message": "BigQuery insertion failed.", "errors": errors}), 500, response_headers
         else:
             print("Successfully inserted event into BigQuery.")
@@ -113,13 +118,8 @@ def track_item_time_event(request):
                 "message": notification_message,
                 "full_log": row_to_insert
             }
-            
-            # NEW: Send the notification payload directly to the backend API
-            try:
-                requests.post(BACKEND_API_URL, json=notification_payload)
-                print(f"Sent direct notification to backend API for seller {seller_id}.")
-            except requests.exceptions.RequestException as req_err:
-                print(f"ERROR: Failed to send notification to backend API: {req_err}")
+            future = pubsub_publisher.publish(notification_topic_path, json.dumps(notification_payload).encode("utf-8"))
+            print(f"Published notification for seller {seller_id}. Message ID: {future.result()}")
 
         return json.dumps({"status": "success", "inserted": True}), 200, response_headers
 

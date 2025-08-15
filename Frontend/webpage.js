@@ -6,20 +6,20 @@ const EventTracker = (() => {
     // --- CONFIGURATION ---
     const cloudFunctionUrls = {
         details_of_product: 'https://asia-south1-svaraflow.cloudfunctions.net/process_details_of_product_event',
-        //first_visit: 'http://127.0.0.1:8081',
+        first_visit: ' https://asia-south1-svaraflow.cloudfunctions.net/process_first_store_visit_event',
         product_image_zoom: 'https://asia-south1-svaraflow.cloudfunctions.net/process_product_image_zoom_event',
-        //product_image_view: 'http://127.0.0.1:8080',
+        product_image_view: ' https://asia-south1-svaraflow.cloudfunctions.net/process_product_image_view_event',
         session_time: 'https://asia-south1-svaraflow.cloudfunctions.net/process_session_time_event',
         store_visit: 'https://asia-south1-svaraflow.cloudfunctions.net/process_store_visit_event',
         user_reviews: 'https://asia-south1-svaraflow.cloudfunctions.net/process_user_reviews_event',
         view_page: ' https://asia-south1-svaraflow.cloudfunctions.net/process_view_page_event',
         view_product: 'https://asia-south1-svaraflow.cloudfunctions.net/process_view_product_event',
         view_user_reviews: 'https://asia-south1-svaraflow.cloudfunctions.net/process_view_user_reviews_event',
-        //scroll_hover_event: 'http://127.0.0.1:8072',
-        //product_hover_event: 'http://127.0.0.1:8072',
-        item_click: 'http://127.0.0.1:8095',
-        item_time_realtime: 'http://127.0.0.1:8095',
-        item_time_final: 'http://127.0.0.1:8095',
+        scroll_hover_event: ' https://asia-south1-svaraflow.cloudfunctions.net/process_scroll_hover_event',
+        product_hover_event: ' https://asia-south1-svaraflow.cloudfunctions.net/process_scroll_hover_event',
+        item_click: ' https://asia-south1-svaraflow.cloudfunctions.net/track_item_time_event',
+        item_time_realtime: ' https://asia-south1-svaraflow.cloudfunctions.net/track_item_time_event',
+        item_time_final: ' https://asia-south1-svaraflow.cloudfunctions.net/track_item_time_event',
 
     };
 
