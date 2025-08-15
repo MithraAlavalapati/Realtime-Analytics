@@ -5,6 +5,7 @@ import json
 import os
 import uuid
 import logging
+import requests
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -13,9 +14,10 @@ logging.basicConfig(level=logging.INFO)
 PROJECT_ID = os.environ.get('GCP_PROJECT_ID', 'svaraflow')
 DATASET_ID = os.environ.get('BIGQUERY_DATASET_ID', 'seller1_data')
 EVENT_TABLE_ID = os.environ.get('BIGQUERY_TABLE_ID_SCROLL_HOVER', 'scroll_hover_events')
-NOTIFICATION_TOPIC_ID = 'seller-notifications-topic'
 # Use environment variable for service account key path, fallback to local file
 SERVICE_ACCOUNT_KEY_PATH = os.environ.get('SERVICE_ACCOUNT_KEY_PATH', 'key.json')
+# NEW: Define the local backend API URL
+BACKEND_API_URL = 'http://localhost:5000/api/notifications/receive'
 
 # --- GLOBAL MAPPING LOGIC ---
 SELLER_MAP = {
@@ -38,18 +40,15 @@ def process_scroll_hover_event(request):
     """
     Processes scroll/hover events from an HTTP request.
     This function now handles both general section hovers and product hovers,
-    logging to BigQuery and sending specific notifications.
+    logging to BigQuery and sending specific notifications directly to the local backend.
     """
     # --- IMPORTANT: Move all Google Cloud client imports and initialization HERE ---
-    # This ensures they are initialized within the worker process, avoiding macOS fork() issues.
-    from google.cloud import bigquery, pubsub_v1
+    from google.cloud import bigquery
     from google.oauth2 import service_account
     from google.api_core.exceptions import GoogleAPIError
 
     bigquery_client = None
     bigquery_table_ref = None
-    pubsub_publisher_client = None
-    pubsub_notification_topic_path = None
 
     try:
         if os.path.exists(SERVICE_ACCOUNT_KEY_PATH):
@@ -63,12 +62,10 @@ def process_scroll_hover_event(request):
 
         bigquery_client = bigquery.Client(project=PROJECT_ID, credentials=credentials)
         bigquery_table_ref = bigquery_client.dataset(DATASET_ID).table(EVENT_TABLE_ID)
-        pubsub_publisher_client = pubsub_v1.PublisherClient(credentials=credentials)
-        pubsub_notification_topic_path = pubsub_publisher_client.topic_path(PROJECT_ID, NOTIFICATION_TOPIC_ID)
-        logging.info("DEBUG: BigQuery and Pub/Sub clients initialized within function scope.")
+        logging.info("DEBUG: BigQuery client initialized within function scope.")
     except Exception as e:
-        logging.error(f"ERROR: Failed to initialize clients within function: {e}")
-        return json.dumps({"status": "error", "message": "Cloud client initialization failed."}), 500
+        logging.error(f"ERROR: Failed to initialize BigQuery client within function: {e}")
+        return json.dumps({"status": "error", "message": "BigQuery client initialization failed."}), 500
     
     response_headers = {
         'Access-Control-Allow-Origin': '*',
@@ -76,10 +73,9 @@ def process_scroll_hover_event(request):
         'Access-Control-Allow-Headers': 'Content-Type'
     }
 
-    # Check if clients were initialized successfully inside the function
-    if bigquery_client is None or bigquery_table_ref is None or pubsub_publisher_client is None:
-        logging.error("Cloud clients not ready. Returning 500.")
-        return json.dumps({"status": "error", "message": "Cloud client initialization failed."}), 500, response_headers
+    if bigquery_client is None or bigquery_table_ref is None:
+        logging.error("BigQuery client not ready. Returning 500.")
+        return json.dumps({"status": "error", "message": "BigQuery client initialization failed."}), 500, response_headers
     
     if request.method == 'OPTIONS':
         return ('', 204, response_headers)
@@ -95,10 +91,10 @@ def process_scroll_hover_event(request):
         event_name = event_data.get('event_name')
 
         if event_name == 'scroll_hover_event':
-            required_fields = ['user_id', 'session_id', 'section_name','event_type', 'page_location', 'timestamp_utc', 
+            required_fields = ['user_id', 'session_id', 'section_name', 'event_type', 'page_location', 'timestamp_utc', 
                                'device_type', 'browser_name', 'os_type', 'referrer_url', 'scroll_depth_pct']
         elif event_name == 'product_hover_event':
-            required_fields = ['user_id', 'session_id', 'item_name', 'seller_id','page_location', 'timestamp_utc', 
+            required_fields = ['user_id', 'session_id', 'item_name', 'seller_id', 'page_location', 'timestamp_utc', 
                                'device_type', 'browser_name', 'os_type', 'referrer_url']
         else:
             return json.dumps({"status": "error", "message": "Invalid event name."}), 400, response_headers
@@ -110,14 +106,10 @@ def process_scroll_hover_event(request):
 
         section_name = event_data.get('section_name')
         
-        # Determine seller_id and store_name for logging and notification
-        # Prioritize seller_id from event_data, then from SELLER_MAP based on section_name
         seller_id_for_context = event_data.get('seller_id')
         if not seller_id_for_context and section_name:
             seller_id_for_context = SELLER_MAP.get(section_name)
 
-        # Determine store_name for context
-        # Prioritize store_name from event_data, then from STORE_MAP_REVERSE based on derived seller_id
         store_name_for_context = event_data.get('store_name')
         if not store_name_for_context and seller_id_for_context:
             store_name_for_context = STORE_MAP_REVERSE.get(seller_id_for_context)
@@ -126,8 +118,8 @@ def process_scroll_hover_event(request):
             "event_id": str(uuid.uuid4()),
             "user_id": event_data.get('user_id'),
             "session_id": event_data.get('session_id'),
-            "seller_id": seller_id_for_context,  # Use the derived seller_id
-            "store_name": store_name_for_context, # Use the derived store_name
+            "seller_id": seller_id_for_context,
+            "store_name": store_name_for_context,
             "section_name": event_data.get('section_name'),
             "event_type": event_data.get('event_type'),
             "scroll_depth_pct": event_data.get('scroll_depth_pct'),
@@ -146,7 +138,6 @@ def process_scroll_hover_event(request):
              row_to_insert['item_name'] = event_data.get('item_name')
              row_to_insert['item_category'] = event_data.get('item_category')
 
-        # Insert into BigQuery
         errors = bigquery_client.insert_rows_json(bigquery_table_ref, [row_to_insert])
         
         if errors:
@@ -158,13 +149,12 @@ def process_scroll_hover_event(request):
                 logging.error(f"  Error reasons: {error_reasons}")
             return json.dumps({"status": "error", "message": "BigQuery insert failed.", "details": errors}), 500, response_headers
 
-        # Publish a message to the notification topic
         if seller_id_for_context:
             message = ""
             if event_name == 'product_hover_event':
                 message = (f"A customer hovered over the '{event_data.get('item_name', 'unknown product')}' "
                            f"in the '{event_data.get('item_category', 'unknown')}' category.")
-            else: # Message for general section hovers
+            else:
                 message = f"A customer is hovering over the '{section_name}' section."
 
             notification_payload = {
@@ -175,8 +165,12 @@ def process_scroll_hover_event(request):
                 "section_name": event_data.get('section_name', None),
             }
             
-            future = pubsub_publisher_client.publish(pubsub_notification_topic_path, json.dumps(notification_payload).encode("utf-8"))
-            logging.info(f"Published notification for seller {seller_id_for_context}. Message ID: {future.result()}")
+            # NEW: Send the notification payload directly to the backend API
+            try:
+                requests.post(BACKEND_API_URL, json=notification_payload)
+                logging.info(f"Sent direct notification to backend API for seller {seller_id_for_context}.")
+            except requests.exceptions.RequestException as req_err:
+                logging.error(f"ERROR: Failed to send notification to backend API: {req_err}")
 
         logging.info(f"Successfully inserted '{event_name}' event.")
         return json.dumps({"status": "success", "inserted": True}), 200, response_headers
@@ -188,5 +182,5 @@ def process_scroll_hover_event(request):
         logging.error(f"ERROR: Google Cloud API error: {e}")
         return json.dumps({"status": "error", "message": f"Google Cloud API error: {str(e)}"}), 500, response_headers
     except Exception as e:
-        logging.error(f"An unexpected error occurred: {e}", exc_info=True) # exc_info for full traceback
+        logging.error(f"An unexpected error occurred: {e}", exc_info=True)
         return json.dumps({"status": "error", "message": str(e)}), 500, response_headers
