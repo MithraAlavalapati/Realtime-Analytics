@@ -7,7 +7,8 @@ import concurrent.futures
 PROJECT_ID = 'svaraflow'
 NOTIFICATION_SUBSCRIPTION_ID = 'seller-notifications-pull'
 SERVICE_ACCOUNT_KEY_PATH = "key.json"
-BACKEND_API_URL = 'http://localhost:5000/api/notifications/receive'
+# CRITICAL FIX: The BACKEND_API_URL must point to the deployed Cloud Run service.
+BACKEND_API_URL = 'https://auramart-prototype-32681899180.asia-south1.run.app/api/notifications/receive'
 
 subscriber = None
 subscription_path = None

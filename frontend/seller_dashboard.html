@@ -67,7 +67,7 @@
     </div>
 
    <script>
-    const API_BASE_URL = 'http://localhost:5000/api';
+    const API_BASE_URL = 'https://auramart-prototype-32681899180.asia-south1.run.app/api';
     let currentSellerId = localStorage.getItem('seller_id');
     let currentStoreName = localStorage.getItem('store_name');
 
@@ -136,7 +136,7 @@
         }
 
         console.log("Attempting to connect to SSE for seller ID:", currentSellerId);
-        eventSource = new EventSource(`${API_BASE_URL}/seller/sse`);
+        eventSource = new EventSource(`${API_BASE_URL}/seller/sse`, { withCredentials: true });
 
         eventSource.onopen = function(event) {
             console.log("SSE connection opened for seller ID:", currentSellerId);
