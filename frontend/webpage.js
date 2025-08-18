@@ -6,7 +6,6 @@ const EventTracker = (() => {
     // --- CONFIGURATION ---
     const cloudFunctionUrls = {
         details_of_product: 'https://asia-south1-svaraflow.cloudfunctions.net/process_details_of_product_event',
-        first_visit: ' https://asia-south1-svaraflow.cloudfunctions.net/process_first_store_visit_event',
         product_image_zoom: 'https://asia-south1-svaraflow.cloudfunctions.net/process_product_image_zoom_event',
         product_image_view: ' https://asia-south1-svaraflow.cloudfunctions.net/process_product_image_view_event',
         session_time: 'https://asia-south1-svaraflow.cloudfunctions.net/process_session_time_event',
@@ -248,8 +247,8 @@ const EventTracker = (() => {
                 review_id: specificPayload.review.review_id,
                 rating: parseInt(specificPayload.review.rating),
                 review_text: specificPayload.review.review_text,
-                review_images_count: specificPayload.review.review_images_count,
-                reviewer_name: specificPayload.review.reviewer_name
+                reviewer_name: 'Anonymous User',
+                review_images_count: 0,
             };
             finalPayload.page_duration_seconds = pageDurationSeconds;
         } else if (eventName === 'view_page') {

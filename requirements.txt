@@ -7,3 +7,4 @@ tenacity==8.*
 Flask==3.*
 Flask-Cors==4.*
 requests==2.*
+google-cloud-storage==2.*
