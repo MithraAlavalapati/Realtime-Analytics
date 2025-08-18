@@ -1,19 +1,24 @@
 import datetime
 import json
-from flask import Flask, request, jsonify, g, send_from_directory, Response, session
+from flask import Flask, request, jsonify, g, send_from_directory, session
 from flask_cors import CORS, cross_origin
-from google.cloud import storage
+from google.cloud import storage, pubsub_v1
+from google.api_core import exceptions
 import os
 import uuid
 import hashlib
-from queue import Queue
+import logging
 import time
 
-# Function to hash passwords
+# Configure logging to provide informative output
+logging.basicConfig(level=logging.INFO)
+
+# Function to hash passwords for secure storage
 def hash_password(password):
     return hashlib.sha256(password.encode()).hexdigest()
 
-# --- 1. Robust Database (In-memory simulation) ---
+# --- 1. Robust Database (In-memory simulation for demonstration purposes) ---
+# In a production environment, this data would be in a real database.
 products = [
     {"id": 1, "seller_id": "book-nook-seller", "name": "Atomic Habits", "price": 22.5, "image_url": "https://placehold.co/600x400/5f4b8b/fff?text=Atomic+Habits", "category": "Books", "store": "The Book Nook", "brand": "Avery", "description": "An easy & proven way to build good habits & break bad ones."},
     {"id": 2, "seller_id": "book-nook-seller", "name": "The Midnight Library", "price": 17.5, "image_url": "https://placehold.co/600x400/7a9e9f/fff?text=Midnight+Library", "category": "Books", "store": "The Book Nook", "brand": "Viking", "description": "A heartwarming and philosophical tale about life choices."},
@@ -41,8 +46,6 @@ user_events = [
     {"event_type": "product_view", "data": {"user_id": 1, "product_id": 5, "timestamp": "2025-08-04T10:03:00"}},
 ]
 
-clients = {}
-
 # --- 2. Flask Setup ---
 app = Flask(__name__, static_folder='frontend', static_url_path='/')
 app.secret_key = os.environ.get('SECRET_KEY', 'a_secret_key_that_is_not_so_secret')
@@ -63,26 +66,35 @@ if not GCS_MOCK_MODE:
         gcs_client = storage.Client(project=GCS_PROJECT_ID)
         gcs_bucket = gcs_client.bucket(GCS_BUCKET_NAME)
         gcs_client_ok = True
-        print(f"Google Cloud Storage client initialized successfully for bucket '{GCS_BUCKET_NAME}'.")
+        logging.info(f"Google Cloud Storage client initialized successfully for bucket '{GCS_BUCKET_NAME}'.")
     except Exception as e:
-        print(f"Failed to initialize GCS client: {e}")
-        print("Please ensure your GOOGLE_APPLICATION_CREDENTIALS environment variable is set correctly.")
+        logging.error(f"Failed to initialize GCS client: {e}")
+        logging.warning("Please ensure your GOOGLE_APPLICATION_CREDENTIALS environment variable is set correctly.")
 else:
-    print("Running in GCS mock mode. No real GCS operations will be performed.")
+    logging.info("Running in GCS mock mode. No real GCS operations will be performed.")
+
+# Pub/Sub setup
+PUBSUB_TOPIC_ID = 'seller-notifications-topic'
+PUBSUB_SUBSCRIPTION_ID = 'seller-notifications-subscription'
+pubsub_publisher = pubsub_v1.PublisherClient()
+pubsub_publisher_path = pubsub_publisher.topic_path(GCS_PROJECT_ID, PUBSUB_TOPIC_ID)
+pubsub_subscriber = pubsub_v1.SubscriberClient()
+pubsub_subscription_path = pubsub_subscriber.subscription_path(GCS_PROJECT_ID, PUBSUB_SUBSCRIPTION_ID)
+
 
 def upload_blob(file_stream, destination_blob_name):
     if not gcs_client_ok:
-        print("GCS client is not configured. File upload skipped.")
+        logging.warning("GCS client is not configured. File upload skipped.")
         return f"https://via.placeholder.co/400x300/f8f9fa?text=GCS+Error"
     
     try:
         blob = gcs_bucket.blob(destination_blob_name)
         file_stream.seek(0)
         blob.upload_from_file(file_stream, content_type=file_stream.content_type)
-        print(f"File uploaded successfully to {destination_blob_name}.")
+        logging.info(f"File uploaded successfully to {destination_blob_name}.")
         return blob.public_url
     except Exception as e:
-        print(f"Error uploading file to GCS: {e}")
+        logging.error(f"Error uploading file to GCS: {e}")
         return None
 
 def save_user_event(user_id, event_type, event_data):
@@ -186,7 +198,6 @@ def logout():
 def get_current_user():
     if "user_id" in session:
         user_id = session["user_id"]
-        role = session["role"]
         user = next((u for u in users if str(u['id']) == str(user_id)), None)
         if user:
             return jsonify({"success": True, "user": {"id": user['id'], "role": user['role'], "username": user['username']}})
@@ -229,7 +240,7 @@ def get_products():
 
         return jsonify({"success": True, "products": all_products_from_gcs})
     except Exception as e:
-        print(f"Error fetching products from GCS: {e}")
+        logging.error(f"Error fetching products from GCS: {e}")
         return jsonify({"success": False, "message": "Failed to fetch all products. Check GCS bucket and permissions."}), 500
 
 @app.route('/api/products/<product_id>', methods=['GET'])
@@ -245,22 +256,20 @@ def get_product(product_id):
 
     if customer and seller:
         new_message = {
-            "id": len(messages) + 1,
+            "id": str(uuid.uuid4()),
             "sender_id": 'system',
-            "receiver_id": seller['id'],
+            "seller_id": seller['id'],
             "content": f"Customer {customer['username']} (Email: {customer['email']}) is viewing your product: {product['name']}.",
             "product_id": product_id,
             "timestamp": datetime.datetime.now().isoformat()
         }
-        messages.append(new_message)
-        save_user_event(user_id, 'customer_view_notification', {
-            "customer_id": customer['id'],
-            "customer_email": customer['email'],
-            "seller_id": seller['id'],
-            "product_id": product_id
-        })
-        print(f"Notification sent to seller {seller['username']}.")
-
+        
+        try:
+            pubsub_publisher.publish(pubsub_publisher_path, json.dumps(new_message).encode("utf-8"))
+            logging.info(f"Published notification for seller {seller['username']}.")
+        except Exception as e:
+            logging.error(f"Failed to publish to Pub/Sub: {e}")
+            
     return jsonify(product)
 
 @app.route('/api/seller/products', methods=['GET'])
@@ -316,9 +325,9 @@ def upload_product():
         try:
             blob = gcs_bucket.blob(product_data_path)
             blob.upload_from_string(json.dumps(new_product, indent=2), content_type='application/json')
-            print(f"Product metadata uploaded to {product_data_path}")
+            logging.info(f"Product metadata uploaded to {product_data_path}")
         except Exception as e:
-            print(f"Warning: Failed to upload product metadata to GCS: {e}")
+            logging.warning(f"Warning: Failed to upload product metadata to GCS: {e}")
 
     save_user_event(g.user_id, 'product_upload', new_product)
 
@@ -345,88 +354,57 @@ def get_seller_analytics():
 
     return jsonify({"success": True, "data": analytics})
 
-# Updated to use SSE
 @app.route('/api/seller/messages', methods=['GET'])
 def get_seller_messages():
     if not require_auth(role="seller"):
         return jsonify({"success": False, "message": "Seller authentication required."}), 401
-
-    seller_messages = [m for m in messages if str(m['receiver_id']) == str(g.user_id)]
-
-    return jsonify({"success": True, "messages": seller_messages})
-
-# New endpoint to receive push notifications from the worker
-@app.route('/api/notifications/receive', methods=['POST'])
-def receive_notification():
-    data = request.get_json()
-    store_name = data.get('store_name')
     
-    seller_id = data.get('seller_id')
-    
-    seller_user = next((u for u in users if str(u['id']) == str(seller_id) and u['role'] == 'seller'), None)
-    
-    if not seller_user:
-        seller_user = next((u for u in users if u['username'] == store_name and u['role'] == 'seller'), None)
+    return jsonify({"success": True, "messages": messages})
 
-    if not seller_user:
-        print(f"Warning: Could not find user for seller_id '{seller_id}' or store_name '{store_name}'.")
-        return jsonify({"success": False, "message": "Seller user not found."}), 404
+@app.route('/api/seller/notifications/poll', methods=['GET'])
+@cross_origin(origins=['https://auramart-prototype-32681899180.asia-south1.run.app'])
+def poll_notifications():
+    """
+    Polls for new notifications from a Pub/Sub subscription and returns them.
+    This replaces the SSE stream.
+    """
+    user_id = request.args.get('sellerId')
+    if not user_id:
+        return jsonify({"success": False, "message": "Authentication required."}), 401
 
-    new_message = {
-        "id": len(messages) + 1,
-        "sender_id": 'system',
-        "receiver_id": seller_user['id'],
-        "content": data.get('message'),
-        "product_id": data.get('item_id'),
-        "timestamp": datetime.datetime.now().isoformat()
-    }
-    messages.append(new_message)
+    messages_to_return = []
+    ack_ids = []
 
-    if seller_user['id'] in clients:
-        sse_client = clients[seller_user['id']]
-        sse_data = f"data: {json.dumps(new_message)}\n\n"
-        sse_client.put(sse_data)
-        print(f"Pushed SSE notification to client for seller {seller_user['username']} (ID: {seller_user['id']}).")
-    else:
-        print(f"No active SSE client for seller {seller_user['username']} (ID: {seller_user['id']}). Notification stored in memory.")
+    try:
+        response = pubsub_subscriber.pull(
+            request={'subscription': pubsub_subscription_path, 'max_messages': 10, 'return_immediately': True}
+        )
 
-    print(f"Received and processed notification for seller {seller_user['username']} (ID: {seller_user['id']}): {data.get('message')}")
-    return jsonify({"success": True, "message": "Notification received."})
-
-# New SSE endpoint
-@app.route('/api/seller/sse')
-def sse_stream():
-    if not require_auth(role="seller"):
-        return Response(json.dumps({"error": "Unauthorized"}), status=401, mimetype='application/json')
-    
-    user_id = session.get('user_id')
-    if user_id not in clients:
-        clients[user_id] = Queue()
-
-    q = clients[user_id]
-    print(f"SSE client connected for seller ID: {user_id}")
-
-    def event_stream():
-        while True:
-            if request.stream is None:
-                break
+        for received_message in response.received_messages:
+            ack_ids.append(received_message.ack_id)
             try:
-                data = q.get(timeout=20) 
-                yield data
-            except:
-                yield 'data: heartbeat\n\n'
-        
-        if user_id in clients:
-            del clients[user_id]
-        print(f"SSE client disconnected for seller ID: {user_id}")
+                message_data = json.loads(received_message.message.data.decode('utf-8'))
+                if str(message_data.get('seller_id')) == str(user_id):
+                    messages_to_return.append(message_data)
+                else:
+                    logging.warning(f"Received message for a different seller ({message_data.get('seller_id')}). Acknowledging.")
+            except Exception as e:
+                logging.error(f"Error processing Pub/Sub message: {e}")
 
-    response = Response(event_stream(), mimetype="text/event-stream")
-    response.headers["Cache-Control"] = "no-cache"
-    response.headers["X-Accel-Buffering"] = "no"
-    response.headers["Access-Control-Allow-Origin"] = "*"
-    return response
+        if ack_ids:
+            pubsub_subscriber.acknowledge(
+                request={'subscription': pubsub_subscription_path, 'ack_ids': ack_ids}
+            )
 
-# ... (all other code)
+    except exceptions.ClientError as e:
+        logging.error(f"Pub/Sub client error during pull: {e}")
+        return jsonify({"success": False, "message": "Failed to retrieve notifications."}), 500
+    except Exception as e:
+        logging.error(f"An unexpected error occurred: {e}")
+        return jsonify({"success": False, "message": "An unexpected error occurred."}), 500
+    
+    return jsonify({"success": True, "notifications": messages_to_return})
+
 
 @app.route('/api/admin/seller_accounts', methods=['GET'])
 def get_admin_seller_accounts():
@@ -450,7 +428,7 @@ def select_seller_account():
     if seller:
         session["user_id"] = seller['id']
         session["role"] = "seller"
-        print(f"Admin switched to seller: {seller['username']} (ID: {seller['id']}).")
+        logging.info(f"Admin switched to seller: {seller['username']} (ID: {seller['id']}).")
         return jsonify({"success": True, "message": f"Successfully switched to seller: {seller['username']}."})
     else:
         return jsonify({"success": False, "message": "Seller not found or invalid ID."}), 404
@@ -468,7 +446,7 @@ def remove_product():
     products = [p for p in products if str(p['id']) != str(product_id)]
 
     if len(products) < initial_product_count:
-        print(f"Product with ID {product_id} removed by admin.")
+        logging.info(f"Product with ID {product_id} removed by admin.")
         return jsonify({"success": True, "message": f"Product with ID {product_id} removed."})
     else:
         return jsonify({"success": False, "message": "Product not found."}), 404
