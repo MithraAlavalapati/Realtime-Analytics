@@ -5,9 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AuraMart - Your Modern Online Store</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&family=Playfair+Display:wght@400;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&family=Playfair+Display:wght@400;700&family=Poppins:wght@400;500;600;700&family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
     
     <link rel="stylesheet" href="webpage.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
 </head>
 <body>
     <div id="app">
@@ -17,11 +18,20 @@
                     <button id="search-icon-btn" class="icon-btn">
                         <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-search"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
                     </button>
+                    <div class="group relative hidden lg:block">
+                        <a href="#" class="px-3 py-2 text-gray-700 hover:text-primary-color font-semibold transition-colors duration-200">Categories <i class="fas fa-chevron-down text-sm ml-1"></i></a>
+                        <div id="mega-menu" class="absolute hidden group-hover:block w-96 bg-white p-4 rounded-lg shadow-lg mt-2 transition-all duration-300 transform scale-95 opacity-0 group-hover:scale-100 group-hover:opacity-100 z-50">
+                        </div>
+                    </div>
                 </div>
                 <a href="#main" class="logo">AuraMart</a>
                 <div class="header-links-right flex items-center gap-4">
                     <button id="profile-icon" class="icon-btn">
                         <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-user"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                    </button>
+                    <button id="wishlist-icon" class="icon-btn">
+                        <i class="far fa-heart"></i>
+                        <span id="wishlist-count" class="cart-count hidden">0</span>
                     </button>
                     <button id="cart-icon" class="icon-btn">
                         <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-shopping-cart"><circle cx="8" cy="21" r="1"/><circle cx="19" cy="21" r="1"/><path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12"/></svg>
@@ -38,29 +48,61 @@
                     </div>
                 </div>
                 
-<!--<h2 class="text-3xl font-bold mb-6" data-section="Hot Promotions">Hot Promotions</h2>-->
-<!--<h2 class="text-3xl font-bold mb-6 mt-12" data-section="Shop by Category">Shop by Category</h2>-->
-<h2 class="text-3xl font-bold mb-6 mt-12" data-section="Featured Products">Featured Products</h2>
+                <h2 class="text-3xl font-bold mb-6 mt-12" data-section="Flash Sales">Flash Sales</h2>
                 <div class="promo-grid">
-                    <a href="#store=Trendy+Threads" class="block" data-promotion-id="FASHION_SALE_BANNER" data-promotion-name="Summer Fashion Sale" data-creative-slot="Trendy Threads Promo">
+                    <a href="#promotion=Trendy+Threads" class="block relative" data-promotion-id="FASHION_SALE_BANNER" data-promotion-name="Summer Fashion Sale" data-creative-slot="Trendy Threads Promo" data-store-name="Trendy Threads">
                         <img src="https://placehold.co/600x200/a55447/fff?text=Trendy+Threads+Sale+20%25+Off" alt="Trendy Threads Sale Banner">
+                        <div id="flash-sale-timer" class="absolute bottom-4 left-4 right-4 text-white text-3xl font-bold text-center bg-black bg-opacity-50 p-2 rounded-lg"></div>
                     </a>
-                    <a href="#store=Tech+Emporium" class="block" data-promotion-id="ELECTRONICS_DEAL" data-promotion-name="Mega Electronics Deal" data-creative-slot="Tech Emporium Promo">
+                    <a href="#promotion=Tech+Emporium" class="block" data-promotion-id="ELECTRONICS_DEAL" data-promotion-name="Mega Electronics Deal" data-creative-slot="Tech Emporium Promo" data-store-name="Tech Emporium">
                         <img src="https://placehold.co/600x200/6f594e/fff?text=Tech+Emporium+Mega+Deal" alt="Tech Emporium Deal Banner">
                     </a>
-                    <a href="#store=The+Book+Nook" class="block" data-promotion-id="BOOK_PROMO" data-promotion-name="Buy 2 Get 1 Free Books" data-creative-slot="The Book Nook Promo">
+                    <a href="#promotion=The+Book+Nook" class="block" data-promotion-id="BOOK_PROMO" data-promotion-name="Buy 2 Get 1 Free Books" data-creative-slot="The Book Nook Promo" data-store-name="The Book Nook">
                         <img src="https://placehold.co/600x200/9b8e84/fff?text=Books+Buy+2+Get+1+Free" alt="Book Nook Promo Banner">
                     </a>
                 </div>
 
-<h2 class="text-3xl font-bold mb-6 mt-12" data-section="Shop by Store">Shop by Store</h2>
+                <h2 class="text-3xl font-bold mb-6 mt-12" data-section="Shop by Store">Shop by Store</h2>
                 <div id="stores-container" class="stores-grid"></div>
 
                 <h2 class="text-3xl font-bold mb-6 mt-12" data-section="Shop by Category">Shop by Category</h2>
                 <div id="categories-container" class="category-grid"></div>
 
                 <h2 class="text-3xl font-bold mb-6 mt-12" data-section="Featured Products">Featured Products</h2>
-        <div id="product-list" class="product-grid" data-section="Featured Products"></div>            </div>
+                <div id="product-list" class="product-grid" data-section="Featured Products"></div>
+            </div>
+        </div>
+
+        <div id="account-page" class="hidden">
+            <header class="header">
+                <button id="back-to-main-btn-account" class="btn btn-secondary text-sm">← Back</button>
+                <h1 class="logo text-center flex-grow">My Account</h1>
+                <button id="cart-icon-account" class="icon-btn">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-shopping-cart"><circle cx="8" cy="21" r="1"/><circle cx="19" cy="21" r="1"/><path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12"/></svg>
+                    <span id="cart-count-account" class="cart-count hidden">0</span>
+                </button>
+            </header>
+            <div class="main-content">
+                <h2 class="text-3xl font-bold mb-6">Your Wishlist</h2>
+                <div id="wishlist-items-container" class="product-grid">
+                    <p class="text-gray-500 text-center col-span-full">Your wishlist is empty.</p>
+                </div>
+            </div>
+        </div>
+        
+        <div id="promotions-page" class="hidden">
+            <header class="header">
+                <button id="back-to-main-btn-promo" class="btn btn-secondary text-sm">← Back</button>
+                <h1 id="promo-page-title" class="logo text-center flex-grow"></h1>
+                <button id="cart-icon-promo" class="icon-btn">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-shopping-cart"><circle cx="8" cy="21" r="1"/><circle cx="19" cy="21" r="1"/><path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12"/></svg>
+                    <span id="cart-count-promo" class="cart-count hidden">0</span>
+                </button>
+            </header>
+            <div class="main-content">
+                <h2 id="promo-title" class="text-3xl font-bold mb-6"></h2>
+                <div id="promo-product-list" class="product-grid" data-section="Hot Promotions"></div>
+            </div>
         </div>
         
         <div id="stores-page" class="hidden">
@@ -109,7 +151,18 @@
                 <p id="empty-cart-message" class="text-gray-500 text-center mt-8 hidden">Your cart is empty.</p>
             </div>
         </div>
-
+        <div id="compare-modal" class="fixed inset-0 bg-gray-900 bg-opacity-50 hidden z-50 overflow-y-auto">
+            <div class="modal-content mx-auto my-10 p-6 bg-white rounded-lg shadow-xl w-11/12 md:w-3/4 lg:w-2/3 relative">
+                <button id="close-compare-modal-btn" class="absolute top-4 right-4 text-gray-500 hover:text-gray-800">
+                    <i class="fas fa-times"></i>
+                </button>
+                <h3 class="text-2xl font-bold mb-4">Product Comparison</h3>
+                <div id="comparison-table-container">
+                    <p class="text-center text-gray-500">Select at least two products to compare.</p>
+                </div>
+                <button id="clear-comparison-btn" class="btn btn-secondary mt-4">Clear All</button>
+            </div>
+        </div>
         <div id="product-detail-page" class="hidden">
             <header class="header">
                 <button id="back-from-detail-btn" class="btn btn-secondary text-lg">← Back</button>
@@ -130,36 +183,41 @@
                     <div class="w-full lg:w-1/2 flex flex-col">
                         <p id="product-category" class="text-lg text-gray-500 mb-2"></p>
                         <h2 id="product-name" class="text-5xl font-bold mb-2"></h2>
+                        <div id="product-variants-container" class="mt-4 flex gap-2 items-center"></div>
                         <p id="product-description" class="text-gray-700 text-xl mb-6 flex-grow"></p>
+                        <p id="stock-availability" class="text-lg font-semibold mb-2"></p>
                         <div class="mt-auto">
                             <p class="text-6xl font-bold text-[#a55447] mb-6">$<span id="product-price"></span></p>
                             <button id="detail-add-to-cart-btn" class="btn btn-primary text-xl w-full">Add to Cart</button>
+                            <button id="add-to-wishlist-btn" class="btn btn-secondary text-xl w-full mt-4">Add to Wishlist</button>
                             <button id="toggle-details-btn" class="btn btn-secondary text-xl w-full mt-4">Show All Details</button>
                         </div>
                     </div>
                 </div>
                 <div id="all-details-section" class="bg-gray-100 p-6 mt-8 rounded-lg shadow-inner"></div>
-                <div id="reviews-section" class="mt-8">
-                    <h3 class="text-4xl font-bold mb-4">Customer Reviews</h3>
-                    <div id="reviews-display-area" class="space-y-4 mb-6"></div>
-                    <button id="view-reviews-btn" class="btn btn-secondary text-xl">View All Reviews</button>
-                    <h4 class="text-3xl font-bold mt-8 mb-4">Submit Your Review</h4>
-                    <div class="flex items-center mb-4">
-                        <label for="review-rating" class="mr-2">Rating:</label>
-                        <select id="review-rating" class="form-control w-auto">
-                            <option value="5">5 Stars</option>
-                            <option value="4">4 Stars</option>
-                            <option value="3">3 Stars</option>
-                            <option value="2">2 Stars</option>
-                            <option value="1">1 Star</option>
-                        </select>
-                    </div>
-                    <textarea id="review-text" class="form-control" rows="4" placeholder="Write your review here..."></textarea>
-                    <button id="submit-review-btn" class="btn btn-primary text-xl mt-4">Submit Review</button>
-                </div>
+                <div id="reviews-section-container" class="mt-8"></div>
+                <div id="recommended-products-container" class="mt-12"></div>
             </div>
         </div>
     </div>
+    
+    <div id="newsletter-popup" class="fixed inset-0 bg-gray-900 bg-opacity-50 flex items-center justify-center hidden z-50">
+        <div class="bg-white p-8 rounded-lg shadow-lg max-w-md w-full text-center relative">
+            <button id="close-popup-btn" class="absolute top-2 right-2 text-gray-500 hover:text-gray-800">
+                <i class="fas fa-times"></i>
+            </button>
+            <h3 class="text-2xl font-bold mb-4">Subscribe to our Newsletter</h3>
+            <p class="text-gray-600 mb-4">Get exclusive deals and updates directly in your inbox!</p>
+            <input type="email" id="newsletter-email" placeholder="Enter your email" class="w-full p-3 border rounded-lg mb-4">
+            <button id="subscribe-btn" class="btn btn-primary w-full">Subscribe</button>
+        </div>
+    </div>
+
+    <div id="cookie-banner" class="fixed bottom-0 left-0 right-0 bg-gray-800 text-white p-4 flex flex-col md:flex-row items-center justify-between z-40">
+        <p class="text-sm">This website uses cookies to ensure you get the best experience. <a href="#" class="underline">Learn more</a></p>
+        <button id="accept-cookies-btn" class="bg-white text-gray-800 text-sm px-4 py-2 rounded mt-2 md:mt-0">Accept</button>
+    </div>
+
     <div id="image-viewer" class="fixed top-0 left-0 w-full h-full bg-black bg-opacity-90 flex justify-center items-center z-2000 hidden">
         <button id="image-viewer-close-btn" class="absolute top-8 right-8 text-white text-4xl cursor-pointer">
             <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-x"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
@@ -175,6 +233,35 @@
             </button>
         </div>
     </div>
+    <div id="search-overlay" class="fixed top-0 left-0 w-full h-full bg-white z-2000 flex items-start justify-center hidden pt-20">
+        <div class="search-overlay-content">
+            <div class="search-input-container">
+                <input type="text" id="search-input" placeholder="Search for products...">
+                <button id="search-close-btn" class="icon-btn">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-x"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+                </button>
+            </div>
+            <div id="search-results-container" class="search-results-grid"></div>
+        </div>
+    </div>
+    
+    <script src="https://www.gstatic.com/dialogflow-console/fast/df-messenger/prod/df-messenger.js"></script>
+    <df-messenger
+      intent="WELCOME"
+      chat-title="AuraMart Support"
+      agent-id="YOUR_AGENT_ID"
+      language-code="en"
+    ></df-messenger>
+
     <script src="webpage.js"></script>
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <script>
+        function handleCredentialResponse(response) {
+            console.log("Encoded JWT ID token: " + response.credential);
+            // In a real application, you would send this token to your backend
+            // for verification and authentication.
+            alert('Signed in with Google! (Demo)');
+        }
+    </script>
 </body>
 </html>

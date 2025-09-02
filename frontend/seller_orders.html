@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Order Management - Seller Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <link rel="stylesheet" href="seller_dashboard.css">
+</head>
+<body class="bg-gray-100">
+    <div class="wrapper">
+        <aside class="sidebar">
+            <h2 class="text-xl font-bold">AuraMart Admin</h2>
+            <nav class="sidebar-nav">
+                <ul class="list-none p-0">
+                    <li class="nav-item">
+                        <a href="seller_dashboard.html" class="nav-link active-link">
+                            <i class="fas fa-box-open"></i><span>Products</span>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a href="seller_orders.html" class="nav-link">
+                            <i class="fas fa-receipt"></i><span>Orders</span>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a href="#" class="nav-link">
+                            <i class="fas fa-chart-line"></i><span>Analytics</span>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a href="#" id="logout-btn" class="nav-link">
+                            <i class="fas fa-sign-out-alt"></i><span>Logout</span>
+                        </a>
+                    </li>
+                </ul>
+            </nav>
+        </aside>
+
+        <main class="main-content">
+            <div class="welcome-banner">
+                <h1 class="text-4xl font-bold">Manage Orders</h1>
+                <p class="text-lg">View and update the status of your customer orders.</p>
+            </div>
+
+            <section id="orders-section" class="content-section active-content">
+                <div class="card p-6">
+                    <h2 class="section-header"><i class="fas fa-receipt"></i>All Orders</h2>
+                    <div id="order-list" class="space-y-4">
+                        <p class="text-secondary text-center">Loading orders...</p>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <script>
+        const API_BASE_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ?
+            'http://localhost:5000/api' :
+            window.location.protocol + '//' + window.location.host + '/api';
+
+        const orderListContainer = document.getElementById('order-list');
+        const logoutBtn = document.getElementById('logout-btn');
+
+        // Mock Order Data
+        const mockOrders = [
+            { id: 'ORD-001', customerName: 'John Doe', items: [{ name: 'Elegant Evening Dress', quantity: 1, price: 89.99 }], total: 89.99, status: 'Processing', date: '2025-08-28' },
+            { id: 'ORD-002', customerName: 'Jane Smith', items: [{ name: 'The Midnight Library', quantity: 2, price: 17.50 }], total: 35.00, status: 'Shipped', date: '2025-08-27' },
+        ];
+
+        function fetchOrders() {
+            // In a real app, this would fetch data from a backend API
+            // fetch(`${API_BASE_URL}/seller/orders?sellerId=${user.id}`)
+            // .then(res => res.json())...
+            
+            renderOrders(mockOrders);
+        }
+
+        function renderOrders(orders) {
+            orderListContainer.innerHTML = '';
+            if (orders.length === 0) {
+                orderListContainer.innerHTML = `<p class="text-secondary w-full text-center">No orders found.</p>`;
+                return;
+            }
+
+            orders.forEach(order => {
+                const orderCard = document.createElement('div');
+                orderCard.className = 'bg-white p-4 rounded-lg shadow-sm border border-gray-200';
+                orderCard.innerHTML = `
+                    <div class="flex justify-between items-center mb-2">
+                        <h4 class="text-xl font-semibold">Order #${order.id}</h4>
+                        <span class="text-sm text-gray-500">${order.date}</span>
+                    </div>
+                    <p><strong>Customer:</strong> ${order.customerName}</p>
+                    <ul class="list-disc list-inside mt-2 text-sm">
+                        ${order.items.map(item => `<li>${item.name} (x${item.quantity}) - $${item.price.toFixed(2)}</li>`).join('')}
+                    </ul>
+                    <div class="mt-4 flex justify-between items-center">
+                        <p class="text-lg font-bold">Total: $${order.total.toFixed(2)}</p>
+                        <div>
+                            <span class="text-sm font-semibold p-2 rounded-full status-${order.status.toLowerCase()}">${order.status}</span>
+                            <button class="btn btn-primary text-sm ml-4">Update Status</button>
+                        </div>
+                    </div>
+                `;
+                orderListContainer.appendChild(orderCard);
+            });
+        }
+
+        logoutBtn.addEventListener('click', () => {
+            fetch(`${API_BASE_URL}/logout`, { method: 'POST' })
+                .then(() => {
+                    sessionStorage.removeItem('user');
+                    window.location.href = 'login.html';
+                });
+        });
+
+        document.addEventListener('DOMContentLoaded', fetchOrders);
+    </script>
+</body>
+</html>
